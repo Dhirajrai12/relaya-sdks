@@ -1,0 +1,4 @@
+# PHP (composer runs at the repo root for Packagist)
+/vendor/
+/composer.lock
+.phpunit.cache/

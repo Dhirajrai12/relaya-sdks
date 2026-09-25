@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "relaya"
+version = "0.1.0"
+description = "Verify webhooks forwarded by Relaya and call the Relaya API."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = []
+keywords = ["relaya", "webhooks", "signature", "hmac", "integrations"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/Dhirajrai12/relaya-sdks/tree/main/python"
+Source = "https://github.com/Dhirajrai12/relaya-sdks"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+relaya = ["py.typed"]

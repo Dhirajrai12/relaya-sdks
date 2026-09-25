@@ -1,0 +1,52 @@
+{
+  "name": "@relaya/node",
+  "version": "0.1.0",
+  "description": "Verify webhooks forwarded by Relaya and call the Relaya API from Node.js, Bun, Deno and edge runtimes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dhirajrai12/relaya-sdks.git",
+    "directory": "node"
+  },
+  "homepage": "https://github.com/Dhirajrai12/relaya-sdks/tree/main/node#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "node --test test/*.test.ts"
+  },
+  "keywords": [
+    "relaya",
+    "webhooks",
+    "signature",
+    "hmac",
+    "integrations"
+  ],
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "7.0.2"
+  }
+}

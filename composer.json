@@ -1,0 +1,36 @@
+{
+    "name": "relaya/relaya-php",
+    "description": "Verify webhooks forwarded by Relaya and call the Relaya API. Includes Laravel middleware.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/Dhirajrai12/relaya-sdks/tree/main/php",
+    "support": {
+        "issues": "https://github.com/Dhirajrai12/relaya-sdks/issues",
+        "source": "https://github.com/Dhirajrai12/relaya-sdks"
+    },
+    "keywords": ["relaya", "webhooks", "signature", "hmac", "laravel"],
+    "require": {
+        "php": ">=8.1",
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Relaya\\": "php/src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Relaya\\Tests\\": "php/tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
