@@ -4,7 +4,7 @@ Verify requests that Relaya forwards to your endpoints, and call the Relaya API.
 
 ```xml
 <dependency>
-  <groupId>io.relaya</groupId>
+  <groupId>io.github.dhirajrai12</groupId>
   <artifactId>relaya-java</artifactId>
   <version>0.1.0</version>
 </dependency>
