@@ -1,4 +1,4 @@
-# @relaya/node
+# relaya-node
 
 Verify requests that Relaya forwards to your endpoints, and call the Relaya API.
 
@@ -6,7 +6,7 @@ Verify requests that Relaya forwards to your endpoints, and call the Relaya API.
 - ESM and CommonJS, with TypeScript types.
 
 ```sh
-npm install @relaya/node
+npm install relaya-node
 ```
 
 ## Receive events
@@ -19,7 +19,7 @@ Mount the middleware **before** `express.json()` for this route; it needs the ra
 
 ```js
 import express from 'express'
-import { relayaMiddleware } from '@relaya/node'
+import { relayaMiddleware } from 'relaya-node'
 
 const app = express()
 
@@ -41,7 +41,7 @@ Bad signatures get a `400` with `{ "error": "<reason>" }`, and your handler neve
 
 ```ts
 // app/webhooks/relaya/route.ts
-import { relayaHandler } from '@relaya/node'
+import { relayaHandler } from 'relaya-node'
 
 export const POST = relayaHandler({
   secret: process.env.RELAYA_SIGNING_SECRET!,
@@ -56,7 +56,7 @@ If `onDelivery` throws, Relaya gets a `500` and retries later with the same idem
 ### Anything else
 
 ```ts
-import { verifyDelivery, WebhookVerificationError } from '@relaya/node'
+import { verifyDelivery, WebhookVerificationError } from 'relaya-node'
 
 try {
   const delivery = await verifyDelivery(rawBody, headers, { secret })
@@ -91,7 +91,7 @@ try {
 Webhook alert channels are signed the same way:
 
 ```ts
-import { verifyAlert } from '@relaya/node'
+import { verifyAlert } from 'relaya-node'
 const alert = await verifyAlert(rawBody, headers, { secret }) // { type, title, body, link, ... }
 ```
 
@@ -100,7 +100,7 @@ const alert = await verifyAlert(rawBody, headers, { secret }) // { type, title, 
 Create an API key in **Settings → API keys**.
 
 ```ts
-import { Relaya } from '@relaya/node'
+import { Relaya } from 'relaya-node'
 
 const relaya = new Relaya({ apiKey: process.env.RELAYA_API_KEY })
 

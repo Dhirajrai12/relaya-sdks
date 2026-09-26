@@ -7,9 +7,9 @@ Official SDKs for Relaya. Each one does the same two jobs, with the same names w
 
 | Language | Folder | Install | Receive helpers |
 |---|---|---|---|
-| Node.js / TypeScript | [node](node) | `npm install @relaya/node` | Express middleware, Fetch handler (Next.js, Hono, Bun, Deno, Workers) |
+| Node.js / TypeScript | [node](node) | `npm install relaya-node` | Express middleware, Fetch handler (Next.js, Hono, Bun, Deno, Workers) |
 | Python | [python](python) | `pip install relaya` | Django, Flask, FastAPI |
-| PHP | [php](php) | `composer require relaya/relaya-php` | Laravel middleware, plain PHP |
+| PHP | [php](php) | `composer require dhirajrai12/relaya-php` | Laravel middleware, plain PHP |
 | Go | [go](go) | `go get github.com/Dhirajrai12/relaya-sdks/go` | `net/http` middleware |
 | Java / Kotlin | [java](java) | Maven `io.relaya:relaya-java` | Spring Boot, Servlet |
 
@@ -49,7 +49,7 @@ Publish a GitHub release with a tag like `v0.2.0`. [Release](.github/workflows/r
 
 A registry that isn't set up yet is skipped with a note in the run, so they can be switched on one at a time. Secrets go in GitHub → Settings → Secrets and variables → Actions; never in code or chat.
 
-Names (`@relaya/node`, `relaya`, `relaya/relaya-php`, `io.relaya`) are placeholders until the product name is final: a published name can't be taken back.
+The Node.js SDK is published on npm as `relaya-node` and the PHP SDK on Packagist as `dhirajrai12/relaya-php`. The other names (`relaya`, `io.relaya`) are placeholders until the product name is final: a published name can't be taken back.
 
 ## License
 
