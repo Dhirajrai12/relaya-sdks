@@ -90,3 +90,74 @@ test('needs an API key', () => {
     if (saved !== undefined) process.env.RELAYA_API_KEY = saved
   }
 })
+
+test('connections: link, find, token', async () => {
+  const api = fakeApi({
+    'POST /api/v1/orgs/o/connect-sessions': (c) => Response.json({ id: 's1', url: 'https://relaya.test/connect/cs_x', expires_at: 'z', echo: c.body }, { status: 201 }),
+    'GET /api/v1/orgs/o/connections': (c) =>
+      Response.json({ data: c.url.searchParams.get('end_user_id') === 'u1' ? [{ id: 'c1', end_user_id: 'u1' }] : [] }),
+    'GET /api/v1/orgs/o/connections/c1/token': () => Response.json({ access_token: 'at', api_base: 'https://www.zohoapis.in' }),
+  })
+  const r = new Relaya({ apiKey: 'rk', orgId: 'o', baseUrl: 'https://relaya.test/api', fetch: api.fetchImpl })
+  const link = await r.connections.createLink({ integration: 'zoho', end_user_id: 'u1' })
+  assert.equal(link.url, 'https://relaya.test/connect/cs_x')
+  assert.deepEqual(api.calls[0]!.body, { integration: 'zoho', end_user_id: 'u1' })
+  assert.equal((await r.connections.find('zoho', 'u1'))?.id, 'c1')
+  assert.equal(await r.connections.find('zoho', 'nobody'), null)
+  assert.equal(api.calls[1]!.url.searchParams.get('integration'), 'zoho')
+  assert.equal((await r.connections.token('c1')).api_base, 'https://www.zohoapis.in')
+})
+
+test('proxy: forwards path, query, body and headers; returns provider errors, throws Relaya errors', async () => {
+  const seen: { url: URL; headers: Headers; body: string | null }[] = []
+  const fetchImpl = (async (input: URL | string, init?: RequestInit) => {
+    const url = new URL(String(input))
+    seen.push({ url, headers: new Headers(init?.headers), body: (init?.body as string) ?? null })
+    if (url.pathname.endsWith('/proxy/crm/v2/Leads')) {
+      return Response.json({ data: [{ id: '1' }] }, { headers: { 'Relaya-Proxy-Attempts': '2' } })
+    }
+    if (url.pathname.endsWith('/proxy/missing')) {
+      return Response.json({ code: 'INVALID_URL_PATTERN' }, { status: 404, headers: { 'Relaya-Proxy-Attempts': '1' } })
+    }
+    if (url.pathname.endsWith('/proxy/text')) return new Response('plain', { headers: { 'Relaya-Proxy-Attempts': '1' } })
+    return Response.json({ error: { code: 'connection_broken', message: 'the user must connect again' } }, { status: 409, headers: { 'Relaya-Proxy-Error': 'true' } })
+  }) as typeof fetch
+  const r = new Relaya({ apiKey: 'rk', orgId: 'o', baseUrl: 'https://relaya.test/api', fetch: fetchImpl })
+  const zoho = r.proxy('c1')
+
+  const res = await zoho.get<{ data: { id: string }[] }>('/crm/v2/Leads', { query: { per_page: 10 }, headers: { orgId: '42' } })
+  assert.equal(res.ok, true)
+  assert.equal(res.attempts, 2)
+  assert.equal(res.data.data[0]!.id, '1')
+  const s = seen[0]!
+  assert.equal(s.url.pathname, '/api/v1/orgs/o/connections/c1/proxy/crm/v2/Leads')
+  assert.equal(s.url.searchParams.get('per_page'), '10')
+  assert.equal(s.headers.get('relaya-proxy-orgid'), '42')
+  assert.equal(s.headers.get('authorization'), 'Bearer rk')
+
+  await zoho.post('/crm/v2/Leads', { data: [{ Last_Name: 'Rao' }] }, { baseUrl: 'https://www.zohoapis.in' })
+  assert.equal(seen[1]!.body, '{"data":[{"Last_Name":"Rao"}]}')
+  assert.equal(seen[1]!.headers.get('content-type'), 'application/json')
+  assert.equal(seen[1]!.headers.get('relaya-proxy-base-url'), 'https://www.zohoapis.in')
+
+  const missing = await zoho.get('/missing')
+  assert.equal(missing.ok, false)
+  assert.equal(missing.status, 404)
+  assert.equal((await zoho.get('/text')).data, 'plain')
+
+  await assert.rejects(zoho.get('/anything'), (e: unknown) => e instanceof RelayaError && e.code === 'connection_broken' && e.status === 409)
+})
+
+test('syncs: create and run', async () => {
+  const api = fakeApi({
+    'GET /api/v1/connect/sync-models': () => Response.json({ data: [{ key: 'zoho.crm_records' }] }),
+    'POST /api/v1/orgs/o/syncs': (c) => Response.json({ id: 'sy1', ...(c.body as object) }, { status: 201 }),
+    'POST /api/v1/orgs/o/syncs/sy1/run': () => Response.json({ id: 'sy1', running: true }, { status: 202 }),
+  })
+  const r = new Relaya({ apiKey: 'rk', orgId: 'o', baseUrl: 'https://relaya.test/api', fetch: api.fetchImpl })
+  assert.equal((await r.syncs.models()).data[0]!.key, 'zoho.crm_records')
+  const s = await r.syncs.create({ connection_id: 'c1', model: 'zoho.crm_records', config: { module: 'Leads' }, interval_minutes: 15 })
+  assert.equal(s.id, 'sy1')
+  assert.deepEqual(api.calls[1]!.body, { connection_id: 'c1', model: 'zoho.crm_records', config: { module: 'Leads' }, interval_minutes: 15 })
+  assert.equal((await r.syncs.run('sy1')).running, true)
+})

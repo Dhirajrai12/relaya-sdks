@@ -6,12 +6,16 @@ namespace Relaya;
 
 use Relaya\Exception\RelayaException;
 use Relaya\Resources\Alerts;
+use Relaya\Resources\Connections;
 use Relaya\Resources\Contracts;
 use Relaya\Resources\Deliveries;
 use Relaya\Resources\Destinations;
 use Relaya\Resources\Events;
 use Relaya\Resources\Incidents;
+use Relaya\Resources\Integrations;
 use Relaya\Resources\Projects;
+use Relaya\Resources\ProxyCalls;
+use Relaya\Resources\Syncs;
 use Relaya\Resources\Webhooks;
 
 /**
@@ -22,7 +26,7 @@ use Relaya\Resources\Webhooks;
  */
 final class Client
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.2.0';
 
     /** Where the API lives until the product has its own domain. */
     public const DEFAULT_BASE_URL = 'https://server.aegonassett.com/api';
@@ -36,6 +40,10 @@ final class Client
     public readonly Contracts $contracts;
     public readonly Incidents $incidents;
     public readonly Alerts $alerts;
+    public readonly Integrations $integrations;
+    public readonly Connections $connections;
+    public readonly ProxyCalls $proxyCalls;
+    public readonly Syncs $syncs;
 
     private string $apiKey;
     private ?string $orgId;
@@ -66,6 +74,76 @@ final class Client
         $this->contracts = new Contracts($this);
         $this->incidents = new Incidents($this);
         $this->alerts = new Alerts($this);
+        $this->integrations = new Integrations($this);
+        $this->connections = new Connections($this);
+        $this->proxyCalls = new ProxyCalls($this);
+        $this->syncs = new Syncs($this);
+    }
+
+    /** Calls the provider's API as a connected user; see Proxy. */
+    public function proxy(string $connectionId): Proxy
+    {
+        return new Proxy($this, $connectionId);
+    }
+
+    /**
+     * @internal used by Proxy. One attempt: Relaya already retries what is safe to retry.
+     * @param array{query?: array<string, scalar|null>, headers?: array<string, string>, base_url?: string, timeout?: int} $options
+     * @throws RelayaException when Relaya couldn't make the call
+     */
+    public function proxyRequest(string $connectionId, string $method, string $path, mixed $body, array $options): ProxyResponse
+    {
+        $url = $this->baseUrl . '/v1/orgs/' . $this->orgId() . '/connections/' . rawurlencode($connectionId) . '/proxy/' . ltrim($path, '/');
+        $query = array_filter($options['query'] ?? [], fn ($v) => $v !== null);
+        if ($query !== []) {
+            $url .= '?' . http_build_query(array_map(fn ($v) => is_bool($v) ? ($v ? 'true' : 'false') : (string) $v, $query));
+        }
+        $headers = ['Authorization: Bearer ' . $this->apiKey, 'Accept: application/json', 'User-Agent: relaya-php/' . self::VERSION];
+        foreach ($options['headers'] ?? [] as $k => $v) {
+            $headers[] = "Relaya-Proxy-{$k}: {$v}";
+        }
+        if (isset($options['base_url'])) {
+            $headers[] = 'Relaya-Proxy-Base-Url: ' . $options['base_url'];
+        }
+        $ch = curl_init($url);
+        $responseHeaders = [];
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $options['timeout'] ?? 120,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HEADERFUNCTION => function ($ch, string $line) use (&$responseHeaders): int {
+                if (str_contains($line, ':')) {
+                    [$k, $v] = explode(':', $line, 2);
+                    $responseHeaders[strtolower(trim($k))] = trim($v);
+                }
+                return strlen($line);
+            },
+        ]);
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, is_string($body) ? $body : json_encode($body, JSON_THROW_ON_ERROR));
+            $headers[] = 'Content-Type: application/json';
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $raw = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($ch);
+        $errno = curl_errno($ch);
+        curl_close($ch);
+        if ($raw === false || $errno !== 0) {
+            throw new RelayaException(0, 'network_error', "Could not reach Relaya: {$error}");
+        }
+        $data = json_decode((string) $raw, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $data = $raw;
+        }
+        $relayaError = ($responseHeaders['relaya-proxy-error'] ?? '') === 'true'
+            || ($status === 401 && !isset($responseHeaders['relaya-proxy-attempts']));
+        if ($relayaError) {
+            $err = is_array($data) ? ($data['error'] ?? []) : [];
+            throw new RelayaException($status, $err['code'] ?? 'proxy_error', $err['message'] ?? "HTTP {$status}", $responseHeaders['x-request-id'] ?? null);
+        }
+        return new ProxyResponse($status, $responseHeaders, $data, (int) ($responseHeaders['relaya-proxy-attempts'] ?? 1));
     }
 
     /** The org this client acts on, looked up from the API key on first use. */

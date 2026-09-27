@@ -131,8 +131,54 @@ if (incident) {
 | `contracts` | `list`, `get`, `createVersion`, `relearn` |
 | `incidents` | `list`, `resolve`, `previewReplay`, `replay` |
 | `alerts` | `channels`, `log` |
+| `integrations` | `list`, `create`, `update`, `delete` |
+| `connections` | `createLink`, `list`, `get`, `find`, `token`, `refresh`, `delete` |
+| `proxy(connectionId)` | `get`, `post`, `put`, `patch`, `delete`, `request` |
+| `proxyCalls` | `list` |
+| `syncs` | `models`, `list`, `create`, `update`, `delete`, `run`, `runs` |
 
 Responses use the API's field names (`snake_case`). `relaya.request(method, path, body?, query?)` reaches anything else.
+
+## Your users' accounts: connect, call, sync
+
+Let your users connect their Zoho, HubSpot, Google or Shiprocket accounts. Relaya keeps their tokens fresh, calls the APIs for you and turns changes into events. Add the app once under **Connections** in the dashboard (your OAuth app's client ID and secret), then:
+
+```ts
+// 1. Backend: a one-time link for one of your users (their ID in your system)
+app.post('/integrations/zoho/link', async (req, res) => {
+  const link = await relaya.connections.createLink({ integration: 'zoho', end_user_id: req.user.id })
+  res.json({ url: link.url })
+})
+```
+
+```html
+<!-- 2. Frontend: a popup, resolved once they've connected -->
+<script src="https://server.aegonassett.com/connect.js"></script>
+<script>
+  connectButton.onclick = async () => {
+    const { url } = await fetch('/integrations/zoho/link', { method: 'POST' }).then((r) => r.json())
+    const { connectionId } = await Relaya.connect(url) // rejects with err.code: closed | expired | failed | popup_blocked
+  }
+</script>
+```
+
+```ts
+// 3. Backend: call Zoho as that user. Relaya adds and renews the token, and retries what is safe to retry.
+const conn = await relaya.connections.find('zoho', user.id)
+const res = await relaya.proxy(conn!.id).get('/crm/v2/Leads', { query: { per_page: 10 } })
+if (res.ok) console.log(res.data)
+// Zoho's own errors come back in res (check res.ok / res.status); a RelayaError means Relaya couldn't
+// make the call, e.g. code 'connection_broken': send the user a new link.
+
+// Another API host of the same provider, or extra headers for the provider:
+await relaya.proxy(googleConn).get(`/v4/spreadsheets/${sheetId}/values/Sheet1`, { baseUrl: 'https://sheets.googleapis.com' })
+
+// 4. Get new and changed records as events, e.g. zoho.lead.created / zoho.lead.updated every 15 minutes.
+//    They arrive at your destinations like any other event (verify them with relayaHandler above).
+await relaya.syncs.create({ connection_id: conn!.id, model: 'zoho.crm_records', config: { module: 'Leads' }, interval_minutes: 15 })
+```
+
+Prefer to call the provider yourself? `await relaya.connections.token(id)` gives a fresh access token and the `api_base` to use.
 
 **Options:** `apiKey` (or `RELAYA_API_KEY`), `baseUrl` (or `RELAYA_BASE_URL`), `orgId` (only needed with a session token), `timeoutMs` (default 30 s), `maxRetries` (default 2), `fetch`.
 

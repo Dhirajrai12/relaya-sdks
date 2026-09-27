@@ -77,6 +77,22 @@ class Relaya:
         self.contracts = Contracts(self)
         self.incidents = Incidents(self)
         self.alerts = Alerts(self)
+        self.integrations = Integrations(self)
+        self.connections = Connections(self)
+        self.proxy_calls = ProxyCalls(self)
+        self.syncs = Syncs(self)
+
+    def proxy(self, connection_id: str) -> "Proxy":
+        """Call the provider's API as the connected user; Relaya adds and renews the token.
+
+        >>> res = relaya.proxy(connection_id).get("/crm/v2/Leads", params={"per_page": 10})
+        >>> if res.ok: print(res.data)
+
+        The provider's answer comes back as is, errors included (check ``ok``/``status``).
+        ``RelayaError`` is raised only when Relaya couldn't make the call
+        (e.g. ``code == "connection_broken"``).
+        """
+        return Proxy(self, connection_id)
 
     @property
     def org_id(self) -> str:
@@ -287,3 +303,188 @@ class Alerts(_Resource):
 
     def log(self) -> List[JSON]:
         return self._c._org("GET", "/alerts")["data"]
+
+
+# ---- connections: your users' accounts at other apps ------------------------------
+
+
+class Integrations(_Resource):
+    def list(self) -> List[JSON]:
+        return self._c._org("GET", "/integrations")["data"]
+
+    def create(self, provider: str, **fields: Any) -> JSON:
+        """Zoho, HubSpot and Google need your OAuth app's client_id and client_secret;
+        Shiprocket needs neither. Optional: key, name, scopes."""
+        return self._c._org("POST", "/integrations", {"provider": provider, **fields})
+
+    def update(self, id: str, **fields: Any) -> JSON:
+        """Fields: name, client_id, client_secret, scopes."""
+        return self._c._org("PATCH", f"/integrations/{id}", fields)
+
+    def delete(self, id: str) -> None:
+        """Deletes its connections too."""
+        self._c._org("DELETE", f"/integrations/{id}")
+
+
+class Connections(_Resource):
+    def create_link(self, integration: str, end_user_id: str, return_url: Optional[str] = None) -> JSON:
+        """A one-time link (30 minutes) where your user connects their account:
+        ``{"id", "url", "expires_at"}``. Open ``url`` with connect.js or redirect the user to it."""
+        body: JSON = {"integration": integration, "end_user_id": end_user_id}
+        if return_url:
+            body["return_url"] = return_url
+        return self._c._org("POST", "/connect-sessions", body)
+
+    def list(self, integration: Optional[str] = None, end_user_id: Optional[str] = None, status: Optional[str] = None) -> List[JSON]:
+        return self._c._org("GET", "/connections", params={"integration": integration, "end_user_id": end_user_id, "status": status})["data"]
+
+    def get(self, id: str) -> JSON:
+        return self._c._org("GET", f"/connections/{id}")
+
+    def find(self, integration: str, end_user_id: str) -> Optional[JSON]:
+        """The connection for one of your users, or None."""
+        found = self.list(integration=integration, end_user_id=end_user_id)
+        return found[0] if found else None
+
+    def token(self, id: str) -> JSON:
+        """A working access token (renewed first when about to expire):
+        ``{"access_token", "token_type", "expires_at", "api_base", ...}``. Use it right away."""
+        return self._c._org("GET", f"/connections/{id}/token")
+
+    def refresh(self, id: str) -> JSON:
+        """Renew the token now: ``{"connection", "refreshed", "error"?}``."""
+        return self._c._org("POST", f"/connections/{id}/refresh")
+
+    def delete(self, id: str) -> None:
+        self._c._org("DELETE", f"/connections/{id}")
+
+
+class ProxyResponse:
+    """The provider's answer to a proxied call."""
+
+    def __init__(self, status: int, headers: Dict[str, str], data: Any, attempts: int) -> None:
+        self.status = status
+        self.ok = 200 <= status < 300
+        self.headers = headers
+        #: Parsed JSON, or the text when the answer isn't JSON.
+        self.data = data
+        #: How many times Relaya called the provider (retries, token renewal).
+        self.attempts = attempts
+
+    def __repr__(self) -> str:
+        return f"<ProxyResponse {self.status} attempts={self.attempts}>"
+
+
+class Proxy:
+    def __init__(self, client: Relaya, connection_id: str) -> None:
+        self._c = client
+        self._id = connection_id
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        headers: Optional[Dict[str, str]] = None,
+        base_url: Optional[str] = None,
+        timeout: float = 120.0,
+    ) -> ProxyResponse:
+        """``headers`` go to the provider (as Relaya-Proxy-<name>); your API key never does.
+        ``base_url``: another API host of the same provider, e.g. https://sheets.googleapis.com."""
+        c = self._c
+        url = f"{c.base_url}/v1/orgs/{c.org_id}/connections/{self._id}/proxy/{path.lstrip('/')}"
+        query = _clean(params or {})
+        if query:
+            url += "?" + urllib.parse.urlencode(query)
+        h = {"Authorization": f"Bearer {c.api_key}", "Accept": "application/json", "User-Agent": f"relaya-python/{__version__}"}
+        for k, v in (headers or {}).items():
+            h[f"Relaya-Proxy-{k}"] = v
+        if base_url:
+            h["Relaya-Proxy-Base-Url"] = base_url
+        data = None
+        if json_body is not None:
+            data = json_body.encode() if isinstance(json_body, str) else json.dumps(json_body).encode()
+            h["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=data, headers=h, method=method)
+        # One attempt: Relaya already retries what is safe to retry.
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as res:
+                return self._response(res.status, res.headers, res.read())
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            relaya_error = e.headers.get("Relaya-Proxy-Error") == "true" or (e.code == 401 and "Relaya-Proxy-Attempts" not in e.headers)
+            if relaya_error:
+                code, message = "proxy_error", f"HTTP {e.code}"
+                try:
+                    err = json.loads(raw).get("error") or {}
+                    code, message = err.get("code", code), err.get("message", message)
+                except (ValueError, AttributeError):
+                    pass
+                raise RelayaError(e.code, code, message, e.headers.get("X-Request-Id")) from None
+            return self._response(e.code, e.headers, raw)
+        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError) as e:
+            raise RelayaError(0, "network_error", f"Could not reach Relaya: {getattr(e, 'reason', e)}") from None
+
+    @staticmethod
+    def _response(status: int, headers: Any, raw: bytes) -> ProxyResponse:
+        text = raw.decode("utf-8", "replace")
+        try:
+            data: Any = json.loads(text) if text else None
+        except ValueError:
+            data = text
+        return ProxyResponse(status, dict(headers.items()), data, int(headers.get("Relaya-Proxy-Attempts") or 1))
+
+    def get(self, path: str, **kw: Any) -> ProxyResponse:
+        return self.request("GET", path, **kw)
+
+    def post(self, path: str, json_body: Any = None, **kw: Any) -> ProxyResponse:
+        return self.request("POST", path, json_body=json_body, **kw)
+
+    def put(self, path: str, json_body: Any = None, **kw: Any) -> ProxyResponse:
+        return self.request("PUT", path, json_body=json_body, **kw)
+
+    def patch(self, path: str, json_body: Any = None, **kw: Any) -> ProxyResponse:
+        return self.request("PATCH", path, json_body=json_body, **kw)
+
+    def delete(self, path: str, **kw: Any) -> ProxyResponse:
+        return self.request("DELETE", path, **kw)
+
+
+class ProxyCalls(_Resource):
+    def list(self, connection: Optional[str] = None) -> List[JSON]:
+        """The last 100 calls made through connections (no query strings or bodies)."""
+        return self._c._org("GET", "/proxy-calls", params={"connection": connection})["data"]
+
+
+# ---- syncs: changes in connected apps become events ---------------------------------
+
+
+class Syncs(_Resource):
+    def models(self) -> List[JSON]:
+        """What can be synced, per provider, and the settings each needs."""
+        return self._c.request("GET", "/v1/connect/sync-models")["data"]
+
+    def list(self) -> List[JSON]:
+        return self._c._org("GET", "/syncs")["data"]
+
+    def create(self, connection_id: str, model: str, config: Optional[Dict[str, str]] = None, **fields: Any) -> JSON:
+        """Start syncing, e.g. ``create(conn_id, "zoho.crm_records", {"module": "Leads"})``.
+        Optional: interval_minutes (default 15), webhook_id, emit_existing.
+        Events land on a new webhook unless you pass webhook_id; add a destination there to receive them."""
+        return self._c._org("POST", "/syncs", {"connection_id": connection_id, "model": model, "config": config or {}, **fields})
+
+    def update(self, id: str, **fields: Any) -> JSON:
+        """Fields: enabled, interval_minutes, config (a new config starts the sync over)."""
+        return self._c._org("PATCH", f"/syncs/{id}", fields)
+
+    def delete(self, id: str) -> None:
+        self._c._org("DELETE", f"/syncs/{id}")
+
+    def run(self, id: str) -> JSON:
+        """Run it within seconds instead of waiting for the schedule."""
+        return self._c._org("POST", f"/syncs/{id}/run")
+
+    def runs(self, id: str) -> List[JSON]:
+        return self._c._org("GET", f"/syncs/{id}/runs")["data"]

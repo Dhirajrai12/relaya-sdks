@@ -100,4 +100,51 @@ final class ClientTest extends TestCase
             $this->assertSame([0, 'network_error'], [$e->status, $e->errorCode]);
         }
     }
+
+    public function testConnectionsLinkFindToken(): void
+    {
+        $c = new Client('rk', ['base_url' => self::$url, 'org_id' => 'o']);
+        $this->assertSame('https://r/connect/cs_x', $c->connections->createLink('zoho', 'u1')['url']);
+        $this->assertSame(['integration' => 'zoho', 'end_user_id' => 'u1'], $this->calls()[0]['body']);
+        $this->assertSame('c1', $c->connections->find('zoho', 'u1')['id']);
+        $this->assertNull($c->connections->find('zoho', 'nobody'));
+        $this->assertSame('https://www.zohoapis.in', $c->connections->token('c1')['api_base']);
+    }
+
+    public function testProxy(): void
+    {
+        $c = new Client('rk', ['base_url' => self::$url, 'org_id' => 'o']);
+        $res = $c->proxy('c1')->get('/crm/v2/Leads', ['query' => ['per_page' => 10], 'headers' => ['orgId' => '42'], 'base_url' => 'https://www.zohoapis.in']);
+        $this->assertTrue($res->ok);
+        $this->assertSame([200, 2, '1'], [$res->status, $res->attempts, $res->data['data'][0]['id']]);
+        $call = $this->calls()[0];
+        $this->assertSame(['per_page' => '10'], $call['query']);
+        $this->assertSame('42', $call['proxy_headers']['HTTP_RELAYA_PROXY_ORGID']);
+        $this->assertSame('https://www.zohoapis.in', $call['proxy_headers']['HTTP_RELAYA_PROXY_BASE_URL']);
+        $this->assertSame('Bearer rk', $call['auth']);
+
+        $created = $c->proxy('c1')->post('/crm/v2/Leads', ['data' => [['Last_Name' => 'Rao']]]);
+        $this->assertSame([201, ['data' => [['Last_Name' => 'Rao']]]], [$created->status, $created->data['echo']]);
+
+        $missing = $c->proxy('c1')->get('/missing'); // the provider's own error: returned
+        $this->assertFalse($missing->ok);
+        $this->assertSame(404, $missing->status);
+
+        try { // Relaya couldn't make the call: thrown
+            $c->proxy('c2')->get('/x');
+            $this->fail('expected an exception');
+        } catch (RelayaException $e) {
+            $this->assertSame([409, 'connection_broken'], [$e->status, $e->errorCode]);
+        }
+    }
+
+    public function testSyncs(): void
+    {
+        $c = new Client('rk', ['base_url' => self::$url, 'org_id' => 'o']);
+        $this->assertSame('zoho.crm_records', $c->syncs->models()[0]['key']);
+        $s = $c->syncs->create('c1', 'zoho.crm_records', ['module' => 'Leads'], ['interval_minutes' => 15]);
+        $this->assertSame('sy1', $s['id']);
+        $this->assertSame(['connection_id' => 'c1', 'model' => 'zoho.crm_records', 'config' => ['module' => 'Leads'], 'interval_minutes' => 15], $this->calls()[1]['body']);
+        $this->assertTrue($c->syncs->run('sy1')['running']);
+    }
 }

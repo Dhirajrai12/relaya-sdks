@@ -2,6 +2,9 @@ import { RelayaError } from './errors.ts'
 import type {
   AlertChannel,
   AlertLogEntry,
+  ConnectLink,
+  Connection,
+  ConnectionToken,
   Contract,
   ContractDetail,
   Delivery,
@@ -13,12 +16,18 @@ import type {
   EventStatus,
   EventSummary,
   Incident,
+  Integration,
   List,
   Page,
   Project,
+  ProxyCall,
+  ProxyResponse,
   Replay,
   ReplayPlan,
   SignatureResult,
+  Sync,
+  SyncModel,
+  SyncRun,
   TestDeliveryResult,
   Webhook,
 } from './types.ts'
@@ -250,6 +259,140 @@ export class Relaya {
     channels: () => this.org<List<AlertChannel>>('GET', '/alert-channels'),
     log: () => this.org<List<AlertLogEntry>>('GET', '/alerts'),
   }
+
+  // ---- connections: your users' accounts at other apps ----------------------------
+
+  readonly integrations = {
+    list: () => this.org<List<Integration>>('GET', '/integrations'),
+    /** Zoho, HubSpot and Google need your OAuth app's client_id and client_secret; Shiprocket needs neither. */
+    create: (input: { provider: string; key?: string; name?: string; client_id?: string; client_secret?: string; scopes?: string[] }) =>
+      this.org<Integration>('POST', '/integrations', input),
+    update: (id: string, input: { name?: string; client_id?: string; client_secret?: string; scopes?: string[] }) =>
+      this.org<Integration>('PATCH', `/integrations/${id}`, input),
+    /** Deletes its connections too. */
+    delete: (id: string) => this.org<void>('DELETE', `/integrations/${id}`),
+  }
+
+  readonly connections = {
+    /**
+     * A one-time link (30 minutes) where your user connects their account.
+     * Open it with connect.js (`await Relaya.connect(link.url)`) or redirect them to it.
+     */
+    createLink: (input: { integration: string; end_user_id: string; return_url?: string }) =>
+      this.org<ConnectLink>('POST', '/connect-sessions', input),
+    list: (filters: { integration?: string; end_user_id?: string; status?: 'active' | 'broken' } = {}) =>
+      this.org<List<Connection>>('GET', '/connections', undefined, filters),
+    get: (id: string) => this.org<Connection>('GET', `/connections/${id}`),
+    /** The connection for one of your users, or null. */
+    find: async (integration: string, endUserId: string) =>
+      (await this.connections.list({ integration, end_user_id: endUserId })).data[0] ?? null,
+    /** A working access token, renewed first when about to expire. Use it right away rather than storing it. */
+    token: (id: string) => this.org<ConnectionToken>('GET', `/connections/${id}/token`),
+    /** Renews the token now, e.g. to check the connection works. */
+    refresh: (id: string) => this.org<{ connection: Connection; refreshed: boolean; error?: string }>('POST', `/connections/${id}/refresh`),
+    delete: (id: string) => this.org<void>('DELETE', `/connections/${id}`),
+  }
+
+  /**
+   * Calls the provider's API as the connected user; Relaya adds and renews the token.
+   *
+   *   const res = await relaya.proxy(connectionId).get('/crm/v2/Leads', { query: { per_page: 10 } })
+   *   if (res.ok) console.log(res.data)
+   *
+   * The provider's answer comes back as is, errors included (check `ok`/`status`).
+   * A RelayaError is thrown only when Relaya couldn't make the call (e.g. the
+   * connection is broken, `code: 'connection_broken'`).
+   */
+  proxy(connectionId: string) {
+    const call = <T = unknown>(method: string, path: string, opts: ProxyOptions = {}) => this.proxyRequest<T>(connectionId, method, path, opts)
+    return {
+      request: call,
+      get: <T = unknown>(path: string, opts?: Omit<ProxyOptions, 'body'>) => call<T>('GET', path, opts),
+      post: <T = unknown>(path: string, body?: unknown, opts?: Omit<ProxyOptions, 'body'>) => call<T>('POST', path, { ...opts, body }),
+      put: <T = unknown>(path: string, body?: unknown, opts?: Omit<ProxyOptions, 'body'>) => call<T>('PUT', path, { ...opts, body }),
+      patch: <T = unknown>(path: string, body?: unknown, opts?: Omit<ProxyOptions, 'body'>) => call<T>('PATCH', path, { ...opts, body }),
+      delete: <T = unknown>(path: string, opts?: Omit<ProxyOptions, 'body'>) => call<T>('DELETE', path, opts),
+    }
+  }
+
+  private async proxyRequest<T>(connectionId: string, method: string, path: string, opts: ProxyOptions): Promise<ProxyResponse<T>> {
+    const url = new URL(`${this.baseUrl}/v1/orgs/${await this.orgId()}/connections/${connectionId}/proxy/${path.replace(/^\/+/, '')}`)
+    for (const [k, v] of Object.entries(opts.query ?? {})) {
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
+    }
+    const headers: Record<string, string> = { Authorization: `Bearer ${this.apiKey}`, Accept: 'application/json' }
+    for (const [k, v] of Object.entries(opts.headers ?? {})) headers[`Relaya-Proxy-${k}`] = v
+    if (opts.baseUrl) headers['Relaya-Proxy-Base-Url'] = opts.baseUrl
+    let body: BodyInit | undefined
+    if (opts.body !== undefined) {
+      body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)
+      headers['Content-Type'] = opts.contentType ?? 'application/json'
+    }
+    let res: Response
+    try {
+      // One attempt: Relaya already retries what is safe to retry.
+      res = await this.fetchImpl(url, { method, headers, body, signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000) })
+    } catch (err) {
+      throw new RelayaError(0, 'network_error', `Could not reach Relaya: ${(err as Error).message}`)
+    }
+    const text = await res.text()
+    let data: unknown = text
+    try {
+      data = text ? JSON.parse(text) : null
+    } catch {
+      // not JSON: keep the text
+    }
+    if (res.headers.get('relaya-proxy-error') === 'true' || (res.status === 401 && !res.headers.has('relaya-proxy-attempts'))) {
+      const e = (data as { error?: { code?: string; message?: string } } | null)?.error
+      throw new RelayaError(res.status, e?.code ?? 'proxy_error', e?.message ?? `HTTP ${res.status}`, res.headers.get('x-request-id'))
+    }
+    return { status: res.status, ok: res.ok, headers: res.headers, data: data as T, attempts: Number(res.headers.get('relaya-proxy-attempts') ?? 1) }
+  }
+
+  readonly proxyCalls = {
+    /** The last 100 calls made through connections (no query strings or bodies). */
+    list: (filters: { connection?: string } = {}) => this.org<List<ProxyCall>>('GET', '/proxy-calls', undefined, filters),
+  }
+
+  // ---- syncs: changes in connected apps become events ------------------------------
+
+  readonly syncs = {
+    /** What can be synced, per provider, and the settings each needs. */
+    models: () => this.request<List<SyncModel>>('GET', '/v1/connect/sync-models'),
+    list: () => this.org<List<Sync>>('GET', '/syncs'),
+    /**
+     * Starts syncing, e.g. { connection_id, model: 'zoho.crm_records', config: { module: 'Leads' } }.
+     * Events land on a new webhook unless you pass webhook_id; add a destination there to receive them.
+     */
+    create: (input: {
+      connection_id: string
+      model: string
+      config?: Record<string, string>
+      interval_minutes?: number
+      webhook_id?: string
+      emit_existing?: boolean
+    }) => this.org<Sync>('POST', '/syncs', input),
+    /** A new config starts the sync over (fresh first run). */
+    update: (id: string, input: { enabled?: boolean; interval_minutes?: number; config?: Record<string, string> }) =>
+      this.org<Sync>('PATCH', `/syncs/${id}`, input),
+    delete: (id: string) => this.org<void>('DELETE', `/syncs/${id}`),
+    /** Runs it within seconds instead of waiting for the schedule. */
+    run: (id: string) => this.org<Sync>('POST', `/syncs/${id}/run`),
+    runs: (id: string) => this.org<List<SyncRun>>('GET', `/syncs/${id}/runs`),
+  }
+}
+
+export interface ProxyOptions {
+  query?: Record<string, string | number | boolean | undefined | null>
+  /** Sent to the provider (as Relaya-Proxy-<name>); your Relaya API key never is. */
+  headers?: Record<string, string>
+  /** JSON-encoded unless it is a string. */
+  body?: unknown
+  contentType?: string
+  /** Another API host of the same provider, e.g. https://sheets.googleapis.com. */
+  baseUrl?: string
+  /** Default 120 s. */
+  timeoutMs?: number
 }
 
 /** Exponential backoff with jitter; honours Retry-After (seconds) up to 30 s. */

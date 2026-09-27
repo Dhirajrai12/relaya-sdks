@@ -302,7 +302,16 @@ export interface ReplayPlan {
   }[]
 }
 
-export type AlertKind = 'incident_opened' | 'incident_resolved' | 'destination_failing' | 'destination_recovered' | 'signature_failures'
+export type AlertKind =
+  | 'incident_opened'
+  | 'incident_resolved'
+  | 'destination_failing'
+  | 'destination_recovered'
+  | 'signature_failures'
+  | 'connection_broken'
+  | 'connection_recovered'
+  | 'sync_failing'
+  | 'sync_recovered'
 export type AlertChannelType = 'slack' | 'email' | 'webhook'
 
 export interface AlertChannel {
@@ -320,6 +329,147 @@ export interface AlertChannel {
 export interface AlertSettings {
   kinds: AlertKind[]
   email_enabled: boolean
+}
+
+// ---- connections, proxy and syncs ------------------------------------------------
+
+export interface Integration {
+  id: string
+  /** The name your code uses, e.g. "zoho". */
+  key: string
+  provider: string
+  provider_name: string
+  auth: 'oauth2' | 'login'
+  name: string
+  client_id: string
+  has_client_secret: boolean
+  scopes: string[]
+  connections: number
+  broken: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Connection {
+  id: string
+  integration_id: string
+  integration_key: string
+  integration_name: string
+  provider: string
+  /** Your ID for the user or account that connected. */
+  end_user_id: string
+  /** "broken": the provider refused to renew access; the user must connect again. */
+  status: 'active' | 'broken'
+  expires_at: string | null
+  last_refreshed_at: string | null
+  refresh_failures: number
+  last_error: string
+  broken_at: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface ConnectionToken {
+  access_token: string
+  token_type: string
+  expires_at: string | null
+  /** Where to call the provider's API with it, e.g. https://www.zohoapis.in. */
+  api_base: string
+  provider: string
+  end_user_id: string
+}
+
+export interface ConnectLink {
+  id: string
+  /** Send the user here, or open it with connect.js (`Relaya.connect(url)`). Works once, for 30 minutes. */
+  url: string
+  expires_at: string
+}
+
+export interface ProxyResponse<T = unknown> {
+  /** The provider's status code. */
+  status: number
+  ok: boolean
+  headers: Headers
+  /** Parsed JSON, or the text when the answer isn't JSON. */
+  data: T
+  /** How many times Relaya called the provider (retries, token renewal). */
+  attempts: number
+}
+
+export interface ProxyCall {
+  id: number
+  connection_id: string
+  end_user_id: string
+  integration_name: string
+  method: string
+  host: string
+  path: string
+  status: number
+  attempts: number
+  duration_ms: number
+  error: string
+  created_at: string
+}
+
+export interface SyncModelField {
+  key: string
+  label: string
+  help?: string
+  placeholder?: string
+  required: boolean
+  options?: string[]
+  default?: string
+}
+
+export interface SyncModel {
+  /** e.g. "zoho.crm_records". */
+  key: string
+  provider: string
+  name: string
+  description: string
+  fields: SyncModelField[]
+  incremental: boolean
+  verified: boolean
+}
+
+export interface Sync {
+  id: string
+  connection_id: string
+  end_user_id: string
+  integration_name: string
+  provider: string
+  /** The webhook its events are stored on; add destinations there to receive them. */
+  webhook_id: string
+  webhook_name: string
+  model: string
+  model_name: string
+  config: Record<string, string>
+  interval_minutes: number
+  enabled: boolean
+  emit_existing: boolean
+  baseline_done: boolean
+  running: boolean
+  next_run_at: string
+  last_run_at: string | null
+  last_status: 'never' | 'ok' | 'error'
+  last_error: string
+  consecutive_failures: number
+  records: number
+  events: number
+  created_at: string
+}
+
+export interface SyncRun {
+  id: number
+  started_at: string
+  finished_at: string | null
+  status: 'running' | 'ok' | 'error'
+  fetched: number
+  created: number
+  updated: number
+  error: string
 }
 
 export interface AlertLogEntry {

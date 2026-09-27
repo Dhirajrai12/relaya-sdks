@@ -85,6 +85,29 @@ Options (second constructor argument): `base_url` (or `RELAYA_BASE_URL`), `org_i
 
 Errors throw `Relaya\Exception\RelayaException` with `status`, `errorCode` and `requestId`.
 
+## Your users' accounts: connect, call, sync
+
+Let your users connect their Zoho, HubSpot, Google or Shiprocket accounts; Relaya keeps their tokens fresh, calls the APIs for you and turns changes into events. Add the app once under **Connections** in the dashboard, then:
+
+```php
+// 1. A one-time link for one of your users; open it with connect.js (Relaya.connect(url)) or redirect them
+$link = $relaya->connections->createLink('zoho', (string) $user->id);
+
+// 2. Call Zoho as that user: Relaya adds and renews the token, and retries what is safe to retry
+$conn = $relaya->connections->find('zoho', (string) $user->id);
+$res = $relaya->proxy($conn['id'])->get('/crm/v2/Leads', ['query' => ['per_page' => 10]]);
+if ($res->ok) {
+    print_r($res->data);
+}
+// Zoho's own errors come back in $res ($res->ok / $res->status); RelayaException means Relaya couldn't
+// make the call, e.g. errorCode 'connection_broken': send the user a new link.
+
+// 3. New and changed records as events (zoho.lead.created / .updated), delivered like any other event
+$relaya->syncs->create($conn['id'], 'zoho.crm_records', ['module' => 'Leads'], ['interval_minutes' => 15]);
+```
+
+Also: `$relaya->integrations`, `$relaya->connections->token($id)` (a fresh token and `api_base` to call the provider yourself), `$relaya->proxyCalls->list()`, `$relaya->syncs->models()` / `->runs($id)` / `->run($id)`.
+
 ## Development
 
 Run these from the repository root (Packagist reads `composer.json` there):

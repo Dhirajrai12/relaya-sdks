@@ -1,5 +1,5 @@
 export { Relaya, DEFAULT_BASE_URL } from './client.ts'
-export type { RelayaOptions, EventFilters, DeliveryFilters } from './client.ts'
+export type { RelayaOptions, EventFilters, DeliveryFilters, ProxyOptions } from './client.ts'
 export { RelayaError, WebhookVerificationError } from './errors.ts'
 export type { VerificationFailure } from './errors.ts'
 export {
