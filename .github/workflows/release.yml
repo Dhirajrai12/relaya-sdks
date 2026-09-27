@@ -1,7 +1,10 @@
 # Publishing a GitHub release tagged vX.Y.Z publishes every SDK at X.Y.Z.
 # A registry whose secrets aren't set yet is skipped (with a note), so you can switch them on one at a time.
 #
-#   npm            NPM_TOKEN                                   (npmjs.com → Access Tokens → Granular, publish)
+#   npm            none: trusted publishing                    (npmjs.com → package → Settings → Trusted Publisher → GitHub Actions,
+#                                                              this repo + release.yml), then set the repository variable
+#                                                              NPM_TRUSTED_PUBLISHING=true. Works with 2FA; no token to leak.
+#                  or NPM_TOKEN (a granular token; must bypass 2FA, which npm is phasing out)
 #   PyPI           none: trusted publishing                    (pypi.org → Publishing → add this repo + release.yml, environment "pypi"),
 #                  then set the repository variable PUBLISH_PYPI=true
 #   Packagist      none: it follows the repo's tags            (packagist.org → Submit the repo URL once)
@@ -37,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # trusted publishing and provenance
     defaults:
       run:
         working-directory: node
@@ -50,14 +53,22 @@ jobs:
       - id: check
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TRUSTED: ${{ vars.NPM_TRUSTED_PUBLISHING }}
         run: |
-          if [ -z "$NPM_TOKEN" ]; then echo "::notice::npm skipped: NPM_TOKEN is not set"; echo "skip=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "$TRUSTED" != "true" ] && [ -z "$NPM_TOKEN" ]; then
+            echo "::notice::npm skipped: set NPM_TRUSTED_PUBLISHING=true (trusted publishing) or the NPM_TOKEN secret"; echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
       - if: steps.check.outputs.skip != 'true'
         working-directory: .
         run: node scripts/set-version.mjs ${{ needs.version.outputs.version }}
       - if: steps.check.outputs.skip != 'true'
         run: npm ci && npm test && npm run build
-      - if: steps.check.outputs.skip != 'true'
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - if: steps.check.outputs.skip != 'true' && vars.NPM_TRUSTED_PUBLISHING == 'true'
+        run: npm install -g npm@latest && npm --version
+      - if: steps.check.outputs.skip != 'true' && vars.NPM_TRUSTED_PUBLISHING == 'true'
+        run: npm publish --access public --provenance
+      - if: steps.check.outputs.skip != 'true' && vars.NPM_TRUSTED_PUBLISHING != 'true'
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

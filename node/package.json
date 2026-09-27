@@ -1,6 +1,6 @@
 {
   "name": "relaya-node",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Verify webhooks forwarded by Relaya and call the Relaya API from Node.js, Bun, Deno and edge runtimes.",
   "license": "MIT",
   "repository": {
