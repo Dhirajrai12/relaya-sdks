@@ -165,3 +165,23 @@ class ConnectionsTest(unittest.TestCase):
         self.assertEqual(a.calls[1]["body"], {"connection_id": "c1", "model": "zoho.crm_records", "config": {"module": "Leads"}, "interval_minutes": 15})
         self.assertEqual(s["id"], "sy1")
         self.assertTrue(r.syncs.run("sy1")["running"])
+
+    def test_outbound(self):
+        a = self.api({
+            "POST /v1/orgs/o/outbound/apps": lambda c, n: (201, {"id": "a1", **c["body"]}, {}),
+            "GET /v1/orgs/o/outbound/apps/cust%3A42": lambda c, n: (200, {"app": {"uid": "cust:42"}, "endpoints": [{"id": "ep1"}]}, {}),
+            "POST /v1/orgs/o/outbound/apps/cust%3A42/endpoints": lambda c, n: (201, {"endpoint": {"id": "ep1"}, "signing_secret": "whsec_x"}, {}),
+            "POST /v1/orgs/o/outbound/apps/cust%3A42/endpoints/ep1/test": lambda c, n: (200, {"ok": True}, {}),
+            "POST /v1/orgs/o/outbound/messages": lambda c, n: (202, {"id": "m1", "endpoints": 1, "duplicate": False}, {}),
+            "POST /v1/orgs/o/outbound/apps/cust%3A42/portal-link": lambda c, n: (201, {"url": "https://relaya.test/portal#ps_1"}, {}),
+        })
+        r = Relaya("rk", org_id="o", base_url=a.url)
+        self.assertEqual(r.outbound.apps.create("cust:42", "Acme")["id"], "a1")
+        self.assertEqual(a.calls[0]["body"], {"uid": "cust:42", "name": "Acme"})
+        self.assertEqual(r.outbound.endpoints.create("cust:42", "https://acme.test/hooks", event_types=["invoice.paid"])["signing_secret"], "whsec_x")
+        self.assertEqual([e["id"] for e in r.outbound.endpoints.list("cust:42")], ["ep1"])
+        self.assertTrue(r.outbound.endpoints.test("cust:42", "ep1", "invoice.paid")["ok"])
+        self.assertEqual(a.calls[-1]["query"]["event_type"], ["invoice.paid"])
+        self.assertEqual(r.outbound.send("cust:42", "invoice.paid", {"id": "in_1"}, idempotency_key="in_1")["id"], "m1")
+        self.assertEqual(a.calls[-1]["body"], {"app": "cust:42", "event_type": "invoice.paid", "payload": {"id": "in_1"}, "idempotency_key": "in_1"})
+        self.assertIn("#ps_", r.outbound.apps.portal_link("cust:42")["url"])

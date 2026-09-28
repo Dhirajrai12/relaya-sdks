@@ -161,3 +161,26 @@ test('syncs: create and run', async () => {
   assert.deepEqual(api.calls[1]!.body, { connection_id: 'c1', model: 'zoho.crm_records', config: { module: 'Leads' }, interval_minutes: 15 })
   assert.equal((await r.syncs.run('sy1')).running, true)
 })
+
+test('outbound: apps by uid, endpoints, send, portal link, event types', async () => {
+  const api = fakeApi({
+    'POST /api/v1/orgs/o/outbound/apps': (c) => Response.json({ id: 'a1', ...(c.body as object) }, { status: 201 }),
+    'GET /api/v1/orgs/o/outbound/apps/cust%3A42': () => Response.json({ app: { uid: 'cust:42' }, endpoints: [{ id: 'ep1' }] }),
+    'POST /api/v1/orgs/o/outbound/apps/cust%3A42/endpoints': () => Response.json({ endpoint: { id: 'ep1' }, signing_secret: 'whsec_x' }, { status: 201 }),
+    'POST /api/v1/orgs/o/outbound/apps/cust%3A42/endpoints/ep1/test': () => Response.json({ ok: true, status_code: 200 }),
+    'POST /api/v1/orgs/o/outbound/messages': () => Response.json({ id: 'm1', endpoints: 1, duplicate: false }, { status: 202 }),
+    'POST /api/v1/orgs/o/outbound/apps/cust%3A42/portal-link': () => Response.json({ url: 'https://relaya.test/portal#ps_1', expires_at: 'x' }, { status: 201 }),
+    'DELETE /api/v1/orgs/o/outbound/event-types/invoice.paid': () => new Response(null, { status: 204 }),
+  })
+  const r = new Relaya({ apiKey: 'rk', orgId: 'o', baseUrl: 'https://relaya.test/api', fetch: api.fetchImpl })
+  assert.equal((await r.outbound.apps.create({ uid: 'cust:42', name: 'Acme' })).id, 'a1')
+  assert.equal((await r.outbound.endpoints.create('cust:42', { url: 'https://acme.test/hooks', event_types: ['invoice.paid'] })).signing_secret, 'whsec_x')
+  assert.deepEqual((await r.outbound.endpoints.list('cust:42')).map((e) => e.id), ['ep1'])
+  assert.equal((await r.outbound.endpoints.test('cust:42', 'ep1', 'invoice.paid')).ok, true)
+  assert.equal(api.calls.at(-1)!.url.searchParams.get('event_type'), 'invoice.paid')
+  const m = await r.outbound.send({ app: 'cust:42', event_type: 'invoice.paid', payload: { id: 'in_1' }, idempotency_key: 'in_1' })
+  assert.equal(m.id, 'm1')
+  assert.deepEqual(api.calls.at(-1)!.body, { app: 'cust:42', event_type: 'invoice.paid', payload: { id: 'in_1' }, idempotency_key: 'in_1' })
+  assert.match((await r.outbound.apps.portalLink('cust:42')).url, /#ps_/)
+  await r.outbound.eventTypes.delete('invoice.paid')
+})

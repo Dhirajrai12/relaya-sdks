@@ -74,6 +74,49 @@ Builder: `apiKey` (or `RELAYA_API_KEY`), `baseUrl` (or `RELAYA_BASE_URL`), `orgI
 
 Errors throw `RelayaException` (unchecked) with `status()`, `code()` and `requestId()`.
 
+## Your users' accounts: connect, call, sync
+
+Let your users connect their Zoho, HubSpot, Google or Shiprocket accounts; Relaya keeps their tokens fresh, calls the APIs for you and turns changes into events. Add the app once under **Connections** in the dashboard, then:
+
+```java
+// 1. A one-time link for one of your users; open it with connect.js (Relaya.connect(url)) or redirect them
+ConnectLink link = relaya.connections().createLink("zoho", user.id());
+
+// 2. Call Zoho as that user: Relaya adds and renews the token, and retries what is safe to retry
+Connection conn = relaya.connections().find("zoho", user.id()).orElseThrow();
+ProxyResponse res = relaya.proxy(conn.id()).get("/crm/v2/Leads", new ProxyOptions().query("per_page", 10));
+if (res.ok()) {
+    System.out.println(res.json().get("data"));
+}
+// Zoho's own errors come back in res (res.ok() / res.status()); RelayaException means Relaya couldn't make
+// the call, e.g. code() "connection_broken": send the user a new link.
+
+// 3. New and changed records as events (zoho.lead.created / .updated), delivered like any other event
+relaya.syncs().create(conn.id(), "zoho.crm_records", Map.of("module", "Leads"), Map.of("interval_minutes", 15));
+```
+
+Also: `relaya.integrations()`, `relaya.connections().token(id)` (a fresh token and `apiBase` to call the provider yourself), `relaya.proxyCalls().list(null)`, `relaya.syncs().models()` / `runs(id)` / `run(id)`. `new ProxyOptions().baseUrl(...)` reaches another API host of the same provider.
+
+## Send webhooks to your customers
+
+If your product sends webhooks to its own customers, Relaya can do the sending: it signs each message with [Standard Webhooks](https://www.standardwebhooks.com), retries failures for up to a day and logs every attempt. Each customer manages their own endpoints in a hosted portal.
+
+```java
+// When a customer signs up: one app per customer, keyed by your own ID for them
+relaya.outbound().apps().create(customer.id(), customer.name());
+
+// Whenever something happens. With an idempotency key, sending the same message twice sends it once.
+SentMessage msg = relaya.outbound().send(customer.id(), "invoice.paid",
+        Map.of("invoice_id", invoice.id(), "amount", invoice.amount()), invoice.id() + "-paid");
+// msg.endpoints(): how many endpoints it went to; msg.id() is the webhook-id header they receive
+
+// A "Webhooks" button in your product: a 24-hour portal link where the customer adds endpoints,
+// picks event types, sees deliveries and re-sends failures
+String url = relaya.outbound().apps().portalLink(customer.id()).url();
+```
+
+Or manage endpoints for them: `relaya.outbound().endpoints().create(app, url, List.of("invoice.paid"))` (returns the `whsec_…` signing secret), `list`, `update`, `delete`, `secret`, `test`; event types in `relaya.outbound().eventTypes()`. Your customers verify requests with any Standard Webhooks library (`com.standardwebhooks:standardwebhooks`).
+
 ## Development
 
 ```sh

@@ -131,6 +131,61 @@ class IntegrationTest(unittest.TestCase):
             relaya.deliveries.retry(ok[0]["id"])
         self.assertEqual(cm.exception.status, 409)
 
+    def test_outbound_against_live_relaya(self):
+        import base64
+        import hashlib
+        import hmac
+
+        session = post("/v1/auth/signup", {"email": f"py-out-{time.time_ns()}@example.com", "password": "sdk-test-password-1", "org_name": "SDK outbound"})
+        req = urllib.request.Request(API + "/v1/me", headers={"Authorization": f"Bearer {session['token']}"})
+        with urllib.request.urlopen(req) as r:
+            org_id = json.loads(r.read())["orgs"][0]["id"]
+        key = post(f"/v1/orgs/{org_id}/api-keys", {"name": "sdk", "role": "admin"}, session["token"])
+        relaya = Relaya(key["key"], base_url=API)
+
+        got = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                got.append((dict(self.headers), body))
+                self.send_response(200)
+                self.end_headers()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{server.server_address[1]}/hooks"
+        try:
+            relaya.outbound.apps.create("customer-1", "Customer One")
+            ep = relaya.outbound.endpoints.create("customer-1", url, event_types=["invoice.paid"])
+            self.assertTrue(ep["signing_secret"].startswith("whsec_"))
+            m = relaya.outbound.send("customer-1", "invoice.paid", {"invoice": "in_1"}, idempotency_key="in_1")
+            self.assertEqual(m["endpoints"], 1)
+            again = relaya.outbound.send("customer-1", "invoice.paid", {"invoice": "in_1"}, idempotency_key="in_1")
+            self.assertTrue(again["duplicate"])
+            self.assertEqual(again["id"], m["id"])
+
+            headers, body = wait_for("the message", lambda: got and got[0])
+            h = {k.lower(): v for k, v in headers.items()}
+            key_bytes = base64.b64decode(ep["signing_secret"][len("whsec_"):])
+            want = base64.b64encode(hmac.new(key_bytes, f"{h['webhook-id']}.{h['webhook-timestamp']}.".encode() + body, hashlib.sha256).digest()).decode()
+            self.assertEqual(h["webhook-id"], m["id"])
+            self.assertIn(f"v1,{want}", h["webhook-signature"].split(" "))
+            self.assertEqual(json.loads(body)["data"]["invoice"], "in_1")
+
+            self.assertTrue(relaya.outbound.endpoints.test("customer-1", ep["endpoint"]["id"])["ok"])
+            self.assertIn("/portal#ps_", relaya.outbound.apps.portal_link("customer-1")["url"])
+            self.assertTrue(any(t["name"] == "invoice.paid" for t in relaya.outbound.event_types.list()))
+            relaya.outbound.apps.delete("customer-1")
+            with self.assertRaises(RelayaError) as cm:
+                relaya.outbound.apps.get("customer-1")
+            self.assertEqual(cm.exception.status, 404)
+        finally:
+            server.shutdown()
+
 
 if __name__ == "__main__":
     unittest.main()

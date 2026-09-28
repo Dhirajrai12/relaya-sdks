@@ -1,6 +1,6 @@
 """Verify webhooks forwarded by Relaya and call the Relaya API."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 from .client import DEFAULT_BASE_URL, ProxyResponse, Relaya  # noqa: E402
 from .errors import RelayaError, WebhookVerificationError  # noqa: E402

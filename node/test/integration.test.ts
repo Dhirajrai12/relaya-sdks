@@ -121,3 +121,60 @@ test('SDK against a live Relaya', { skip: !API && 'set RELAYA_IT_API_URL to run'
     server.close()
   }
 })
+
+test('outbound webhooks against a live Relaya', { skip: !API && 'set RELAYA_IT_API_URL to run' }, async () => {
+  const post = async (path: string, body: unknown, token?: string) => {
+    const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify(body) })
+    assert.ok(r.ok, `${path}: ${r.status} ${await r.clone().text()}`)
+    return r.json()
+  }
+  const session = await post('/v1/auth/signup', { email: `sdk-out-${Date.now()}@example.com`, password: 'sdk-test-password-1', org_name: 'SDK outbound' })
+  const me = await (await fetch(API + '/v1/me', { headers: { Authorization: `Bearer ${session.token}` } })).json()
+  const key = await post(`/v1/orgs/${me.orgs[0].id}/api-keys`, { name: 'sdk', role: 'admin' }, session.token)
+  const relaya = new Relaya({ apiKey: key.key, baseUrl: API })
+
+  // The customer's server, checking the Standard Webhooks signature by hand.
+  const got: { headers: IncomingMessage['headers']; body: string }[] = []
+  const server = createServer((req, res) => {
+    let body = ''
+    req.on('data', (c) => (body += c))
+    req.on('end', () => {
+      got.push({ headers: req.headers, body })
+      res.end('ok')
+    })
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hooks`
+
+  try {
+    const app = await relaya.outbound.apps.create({ uid: 'customer-1', name: 'Customer One' })
+    assert.equal(app.uid, 'customer-1')
+    const ep = await relaya.outbound.endpoints.create('customer-1', { url, event_types: ['invoice.paid'] })
+    assert.match(ep.signing_secret, /^whsec_/)
+
+    const m = await relaya.outbound.send({ app: 'customer-1', event_type: 'invoice.paid', payload: { invoice: 'in_1' }, idempotency_key: 'in_1' })
+    assert.equal(m.endpoints, 1)
+    const again = await relaya.outbound.send({ app: 'customer-1', event_type: 'invoice.paid', payload: { invoice: 'in_1' }, idempotency_key: 'in_1' })
+    assert.equal(again.duplicate, true)
+    assert.equal(again.id, m.id)
+    assert.equal((await relaya.outbound.send({ app: 'customer-1', event_type: 'user.created', payload: {} })).endpoints, 0)
+
+    const r = await waitFor('the message', () => got[0])
+    const { createHmac } = await import('node:crypto')
+    const id = r.headers['webhook-id'] as string
+    const ts = r.headers['webhook-timestamp'] as string
+    const want = createHmac('sha256', Buffer.from(ep.signing_secret.slice(6), 'base64')).update(`${id}.${ts}.${r.body}`).digest('base64')
+    assert.equal(id, m.id)
+    assert.ok((r.headers['webhook-signature'] as string).split(' ').includes(`v1,${want}`))
+    assert.equal(JSON.parse(r.body).data.invoice, 'in_1')
+
+    assert.equal((await relaya.outbound.endpoints.test('customer-1', ep.endpoint.id)).ok, true)
+    assert.match((await relaya.outbound.apps.portalLink('customer-1')).url, /\/portal#ps_/)
+    assert.ok((await relaya.outbound.eventTypes.list()).data.some((t) => t.name === 'invoice.paid'))
+    assert.equal((await relaya.outbound.apps.list()).data[0]!.endpoints, 1)
+    await relaya.outbound.apps.delete('customer-1')
+    await assert.rejects(relaya.outbound.apps.get('customer-1'), (e) => e instanceof RelayaError && e.status === 404)
+  } finally {
+    server.close()
+  }
+})

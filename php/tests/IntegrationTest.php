@@ -152,4 +152,54 @@ final class IntegrationTest extends TestCase
             @rmdir($dir);
         }
     }
+
+    public function testOutboundAgainstLiveRelaya(): void
+    {
+        $api = getenv('RELAYA_IT_API_URL');
+        if (!$api) {
+            $this->markTestSkipped('set RELAYA_IT_API_URL to run');
+        }
+        $session = self::post("{$api}/v1/auth/signup", ['email' => 'php-out-' . bin2hex(random_bytes(6)) . '@example.com', 'password' => 'sdk-test-password-1', 'org_name' => 'PHP outbound']);
+        $orgId = (new Client($session['token'], ['base_url' => $api]))->request('GET', '/v1/me')['orgs'][0]['id'];
+        $key = self::post("{$api}/v1/orgs/{$orgId}/api-keys", ['name' => 'sdk', 'role' => 'admin'], $session['token']);
+        $relaya = new Client($key['key'], ['base_url' => $api]);
+
+        $dir = sys_get_temp_dir() . '/relaya-out-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        $port = 30000 + random_int(0, 9999);
+        $server = proc_open([PHP_BINARY, '-S', "127.0.0.1:{$port}", __DIR__ . '/fixtures/outbound_endpoint.php'], [1 => ['file', 'nul', 'w'], 2 => ['file', 'nul', 'w']], $pipes, null, array_merge(getenv(), ['RELAYA_IT_DIR' => $dir]));
+        self::waitFor('the endpoint', fn () => @fsockopen('127.0.0.1', $port));
+
+        try {
+            $relaya->outbound->apps->create('customer-1', 'Customer One');
+            $ep = $relaya->outbound->endpoints->create('customer-1', "http://127.0.0.1:{$port}/hooks", ['event_types' => ['invoice.paid']]);
+            $this->assertStringStartsWith('whsec_', $ep['signing_secret']);
+            $m = $relaya->outbound->send('customer-1', 'invoice.paid', ['invoice' => 'in_1'], 'in_1');
+            $this->assertSame(1, $m['endpoints']);
+            $again = $relaya->outbound->send('customer-1', 'invoice.paid', ['invoice' => 'in_1'], 'in_1');
+            $this->assertTrue($again['duplicate']);
+            $this->assertSame($m['id'], $again['id']);
+
+            $r = self::waitFor('the message', fn () => json_decode(explode("\n", (string) @file_get_contents("{$dir}/received"))[0] ?: 'null', true));
+            $want = base64_encode(hash_hmac('sha256', "{$r['id']}.{$r['timestamp']}.{$r['body']}", base64_decode(substr($ep['signing_secret'], 6)), true));
+            $this->assertSame($m['id'], $r['id']);
+            $this->assertContains("v1,{$want}", explode(' ', $r['signature']));
+            $this->assertSame('in_1', json_decode($r['body'], true)['data']['invoice']);
+
+            $this->assertTrue($relaya->outbound->endpoints->test('customer-1', $ep['endpoint']['id'])['ok']);
+            $this->assertStringContainsString('/portal#ps_', $relaya->outbound->apps->portalLink('customer-1')['url']);
+            $this->assertContains('invoice.paid', array_column($relaya->outbound->eventTypes->list(), 'name'));
+            $relaya->outbound->apps->delete('customer-1');
+            try {
+                $relaya->outbound->apps->get('customer-1');
+                $this->fail('expected 404');
+            } catch (RelayaException $e) {
+                $this->assertSame(404, $e->status);
+            }
+        } finally {
+            proc_terminate($server);
+            array_map('unlink', glob("{$dir}/*"));
+            @rmdir($dir);
+        }
+    }
 }

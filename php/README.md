@@ -108,6 +108,25 @@ $relaya->syncs->create($conn['id'], 'zoho.crm_records', ['module' => 'Leads'], [
 
 Also: `$relaya->integrations`, `$relaya->connections->token($id)` (a fresh token and `api_base` to call the provider yourself), `$relaya->proxyCalls->list()`, `$relaya->syncs->models()` / `->runs($id)` / `->run($id)`.
 
+## Send webhooks to your customers
+
+If your product sends webhooks to its own customers, Relaya can do the sending: it signs each message with [Standard Webhooks](https://www.standardwebhooks.com), retries failures for up to a day and logs every attempt. Each customer manages their own endpoints in a hosted portal.
+
+```php
+// When a customer signs up: one app per customer, keyed by your own ID for them
+$relaya->outbound->apps->create((string) $customer->id, $customer->name);
+
+// Whenever something happens. With an idempotency key, sending the same message twice sends it once.
+$msg = $relaya->outbound->send((string) $customer->id, 'invoice.paid', ['invoice_id' => $invoice->id, 'amount' => $invoice->amount], "{$invoice->id}-paid");
+// $msg['endpoints']: how many endpoints it went to; $msg['id'] is the webhook-id header they receive
+
+// A "Webhooks" button in your product: a 24-hour portal link where the customer adds endpoints,
+// picks event types, sees deliveries and re-sends failures
+$url = $relaya->outbound->apps->portalLink((string) $customer->id)['url'];
+```
+
+Or manage endpoints for them: `$relaya->outbound->endpoints->create($app, $url, ['event_types' => [...]])` (returns the `whsec_…` signing secret), `->list`, `->update`, `->delete`, `->secret`, `->test`; event types in `$relaya->outbound->eventTypes`. Your customers verify requests with any Standard Webhooks library (`composer require standard-webhooks/standard-webhooks`).
+
 ## Development
 
 Run these from the repository root (Packagist reads `composer.json` there):

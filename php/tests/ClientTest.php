@@ -147,4 +147,18 @@ final class ClientTest extends TestCase
         $this->assertSame(['connection_id' => 'c1', 'model' => 'zoho.crm_records', 'config' => ['module' => 'Leads'], 'interval_minutes' => 15], $this->calls()[1]['body']);
         $this->assertTrue($c->syncs->run('sy1')['running']);
     }
+
+    public function testOutbound(): void
+    {
+        $c = new Client('rk', ['base_url' => self::$url, 'org_id' => 'o']);
+        $this->assertSame('a1', $c->outbound->apps->create('cust:42', 'Acme')['id']);
+        $this->assertSame(['uid' => 'cust:42', 'name' => 'Acme'], $this->calls()[0]['body']);
+        $this->assertSame('whsec_x', $c->outbound->endpoints->create('cust:42', 'https://acme.test/hooks', ['event_types' => ['invoice.paid']])['signing_secret']);
+        $this->assertSame('ep1', $c->outbound->endpoints->list('cust:42')[0]['id']);
+        $this->assertTrue($c->outbound->endpoints->test('cust:42', 'ep1', 'invoice.paid')['ok']);
+        $this->assertSame('invoice.paid', $this->calls()[3]['query']['event_type']);
+        $this->assertSame('m1', $c->outbound->send('cust:42', 'invoice.paid', ['id' => 'in_1'], 'in_1')['id']);
+        $this->assertSame(['app' => 'cust:42', 'event_type' => 'invoice.paid', 'payload' => ['id' => 'in_1'], 'idempotency_key' => 'in_1'], $this->calls()[4]['body']);
+        $this->assertStringContainsString('#ps_', $c->outbound->apps->portalLink('cust:42')['url']);
+    }
 }

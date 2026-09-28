@@ -13,6 +13,7 @@ use Relaya\Resources\Destinations;
 use Relaya\Resources\Events;
 use Relaya\Resources\Incidents;
 use Relaya\Resources\Integrations;
+use Relaya\Resources\Outbound;
 use Relaya\Resources\Projects;
 use Relaya\Resources\ProxyCalls;
 use Relaya\Resources\Syncs;
@@ -26,7 +27,7 @@ use Relaya\Resources\Webhooks;
  */
 final class Client
 {
-    public const VERSION = '0.2.1';
+    public const VERSION = '0.3.0';
 
     /** Where the API lives until the product has its own domain. */
     public const DEFAULT_BASE_URL = 'https://server.aegonassett.com/api';
@@ -44,6 +45,7 @@ final class Client
     public readonly Connections $connections;
     public readonly ProxyCalls $proxyCalls;
     public readonly Syncs $syncs;
+    public readonly Outbound $outbound;
 
     private string $apiKey;
     private ?string $orgId;
@@ -78,6 +80,7 @@ final class Client
         $this->connections = new Connections($this);
         $this->proxyCalls = new ProxyCalls($this);
         $this->syncs = new Syncs($this);
+        $this->outbound = new Outbound($this);
     }
 
     /** Calls the provider's API as a connected user; see Proxy. */

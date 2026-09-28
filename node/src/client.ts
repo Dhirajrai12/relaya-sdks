@@ -30,6 +30,11 @@ import type {
   SyncRun,
   TestDeliveryResult,
   Webhook,
+  OutboundApp,
+  OutboundEndpoint,
+  OutboundEventType,
+  OutboundMessage,
+  PortalLink,
 } from './types.ts'
 
 /** Where the API lives until the product has its own domain. Override with `baseUrl` or RELAYA_BASE_URL. */
@@ -218,9 +223,9 @@ export class Relaya {
   readonly destinations = {
     list: (webhookId: string) => this.org<List<Destination>>('GET', `/webhooks/${webhookId}/destinations`),
     /** Returns the signing secret once; store it where your endpoint can read it. */
-    create: (webhookId: string, input: { name: string; url: string; max_attempts?: number; timeout_ms?: number; enabled?: boolean }) =>
+    create: (webhookId: string, input: { name: string; url: string; max_attempts?: number; timeout_ms?: number; enabled?: boolean; event_types?: string[] }) =>
       this.org<{ destination: Destination; signing_secret: string }>('POST', `/webhooks/${webhookId}/destinations`, input),
-    update: (id: string, input: { name?: string; url?: string; enabled?: boolean; max_attempts?: number; timeout_ms?: number }) =>
+    update: (id: string, input: { name?: string; url?: string; enabled?: boolean; max_attempts?: number; timeout_ms?: number; event_types?: string[] }) =>
       this.org<Destination>('PATCH', `/destinations/${id}`, input),
     delete: (id: string) => this.org<void>('DELETE', `/destinations/${id}`),
     rotateSecret: (id: string) => this.org<{ signing_secret: string }>('POST', `/destinations/${id}/rotate-secret`),
@@ -380,7 +385,55 @@ export class Relaya {
     run: (id: string) => this.org<Sync>('POST', `/syncs/${id}/run`),
     runs: (id: string) => this.org<List<SyncRun>>('GET', `/syncs/${id}/runs`),
   }
+
+  // ---- outbound webhooks: send events to your own customers ---------------------------
+
+  readonly outbound = {
+    /**
+     * Sends an event to every endpoint of that customer that takes its type. Relaya signs it
+     * (Standard Webhooks), retries failures and logs every attempt. With an idempotency_key,
+     * sending the same message again returns the first one (duplicate: true) instead of a copy.
+     */
+    send: (input: { app: string; event_type: string; payload: Record<string, unknown>; idempotency_key?: string }) =>
+      this.org<OutboundMessage>('POST', '/outbound/messages', input),
+
+    /** One app per customer; refer to it by your own uid (or its id) everywhere. */
+    apps: {
+      list: () => this.org<List<OutboundApp>>('GET', '/outbound/apps'),
+      get: (app: string) => this.org<{ app: OutboundApp; endpoints: OutboundEndpoint[] }>('GET', `/outbound/apps/${enc(app)}`),
+      create: (input: { uid: string; name?: string }) => this.org<OutboundApp>('POST', '/outbound/apps', input),
+      /** Also deletes its endpoints and message history. */
+      delete: (app: string) => this.org<void>('DELETE', `/outbound/apps/${enc(app)}`),
+      /** A 24-hour link where the customer manages their endpoints and sees deliveries. */
+      portalLink: (app: string) => this.org<PortalLink>('POST', `/outbound/apps/${enc(app)}/portal-link`),
+    },
+
+    /** Customers manage these themselves in the portal; these let you do it for them. */
+    endpoints: {
+      list: async (app: string) => (await this.outbound.apps.get(app)).endpoints,
+      /** Returns the signing secret (whsec_…) the customer verifies requests with. */
+      create: (app: string, input: { url: string; description?: string; event_types?: string[] }) =>
+        this.org<{ endpoint: OutboundEndpoint; signing_secret: string }>('POST', `/outbound/apps/${enc(app)}/endpoints`, input),
+      update: (app: string, id: string, input: { url?: string; description?: string; event_types?: string[]; enabled?: boolean }) =>
+        this.org<OutboundEndpoint>('PATCH', `/outbound/apps/${enc(app)}/endpoints/${id}`, input),
+      delete: (app: string, id: string) => this.org<void>('DELETE', `/outbound/apps/${enc(app)}/endpoints/${id}`),
+      secret: (app: string, id: string) => this.org<{ signing_secret: string }>('GET', `/outbound/apps/${enc(app)}/endpoints/${id}/secret`),
+      /** Sends a signed test event now and reports what the endpoint answered. */
+      test: (app: string, id: string, eventType?: string) =>
+        this.org<TestDeliveryResult>('POST', `/outbound/apps/${enc(app)}/endpoints/${id}/test`, undefined, { event_type: eventType }),
+    },
+
+    /** The catalog customers pick from in the portal. Types you send are added automatically. */
+    eventTypes: {
+      list: () => this.org<List<OutboundEventType>>('GET', '/outbound/event-types'),
+      /** Adds it, or updates its description. */
+      save: (input: { name: string; description?: string }) => this.org<OutboundEventType>('POST', '/outbound/event-types', input),
+      delete: (name: string) => this.org<void>('DELETE', `/outbound/event-types/${enc(name)}`),
+    },
+  }
 }
+
+const enc = encodeURIComponent
 
 export interface ProxyOptions {
   query?: Record<string, string | number | boolean | undefined | null>

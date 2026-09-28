@@ -1,9 +1,11 @@
 # Relaya SDKs
 
-Official SDKs for Relaya. Each one does the same two jobs, with the same names where the language allows:
+Official SDKs for Relaya. Each one does the same jobs, with the same names where the language allows:
 
 1. **Receive:** verify the `Relaya-Signature` on requests Relaya forwards to your endpoint, and read the delivery's details (idempotency key, event ID, attempt, replay ID, original body).
 2. **Call the API:** events (with paging), deliveries and retry, incidents and replay, contracts, destinations, webhooks, projects, alerts.
+3. **Send webhooks to your customers** (all five): `outbound.send(...)` for every event, one app per customer, their endpoints, and a hosted portal link. Relaya signs with Standard Webhooks, retries and logs.
+4. **Your users' accounts** (all five): connect Zoho, HubSpot, Google or Shiprocket, call their APIs through the proxy, and sync changes into events.
 
 | Language | Folder | Install | Receive helpers |
 |---|---|---|---|

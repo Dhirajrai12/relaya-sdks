@@ -107,6 +107,7 @@ type Destination struct {
 	Enabled     bool      `json:"enabled"`
 	TimeoutMS   int       `json:"timeout_ms"`
 	MaxAttempts int       `json:"max_attempts"`
+	EventTypes  []string  `json:"event_types"` // only these are forwarded; empty means all
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Stats       struct {

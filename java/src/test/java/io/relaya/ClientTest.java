@@ -119,4 +119,25 @@ class ClientTest {
         assertEquals(0, e.status());
         assertEquals("network_error", e.code());
     }
+
+    @Test
+    void outbound() throws Exception {
+        String url = fakeApi(Map.of(
+                "POST /v1/orgs/o/outbound/apps", (c, n) -> new Reply(201, "{\"id\":\"a1\",\"uid\":\"cust:42\",\"messages_24h\":3}", Map.of()),
+                "GET /v1/orgs/o/outbound/apps/cust:42", (c, n) -> Reply.ok("{\"app\":{\"uid\":\"cust:42\"},\"endpoints\":[{\"id\":\"ep1\",\"event_types\":[\"invoice.paid\"]}]}"),
+                "POST /v1/orgs/o/outbound/apps/cust:42/endpoints", (c, n) -> new Reply(201, "{\"endpoint\":{\"id\":\"ep1\"},\"signing_secret\":\"whsec_x\"}", Map.of()),
+                "POST /v1/orgs/o/outbound/apps/cust:42/endpoints/ep1/test", (c, n) -> Reply.ok("{\"ok\":true}"),
+                "POST /v1/orgs/o/outbound/messages", (c, n) -> new Reply(202, "{\"id\":\"m1\",\"endpoints\":1,\"duplicate\":false}", Map.of()),
+                "POST /v1/orgs/o/outbound/apps/cust:42/portal-link", (c, n) -> new Reply(201, "{\"url\":\"https://relaya.test/portal#ps_1\",\"expires_at\":\"2026-09-29T00:00:00Z\"}", Map.of())));
+        Relaya r = Relaya.builder().apiKey("rk").orgId("o").baseUrl(url).build();
+        assertEquals(3, r.outbound().apps().create("cust:42", "Acme").messages24h());
+        assertEquals("{\"uid\":\"cust:42\",\"name\":\"Acme\"}", calls.get(0).body());
+        assertEquals("whsec_x", r.outbound().endpoints().create("cust:42", "https://acme.test/hooks", List.of("invoice.paid")).signingSecret());
+        assertEquals(List.of("invoice.paid"), r.outbound().endpoints().list("cust:42").get(0).eventTypes());
+        assertTrue(r.outbound().endpoints().test("cust:42", "ep1", "invoice.paid").ok());
+        assertEquals("event_type=invoice.paid", calls.get(3).query());
+        assertEquals("m1", r.outbound().send("cust:42", "invoice.paid", Map.of("id", "in_1"), "in_1").id());
+        assertEquals("{\"app\":\"cust:42\",\"event_type\":\"invoice.paid\",\"payload\":{\"id\":\"in_1\"},\"idempotency_key\":\"in_1\"}", calls.get(4).body());
+        assertTrue(r.outbound().apps().portalLink("cust:42").url().contains("#ps_"));
+    }
 }

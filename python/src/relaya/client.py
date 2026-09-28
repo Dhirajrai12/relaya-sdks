@@ -81,6 +81,7 @@ class Relaya:
         self.connections = Connections(self)
         self.proxy_calls = ProxyCalls(self)
         self.syncs = Syncs(self)
+        self.outbound = Outbound(self)
 
     def proxy(self, connection_id: str) -> "Proxy":
         """Call the provider's API as the connected user; Relaya adds and renews the token.
@@ -229,7 +230,7 @@ class Destinations(_Resource):
 
     def create(self, webhook_id: str, name: str, url: str, **fields: Any) -> JSON:
         """Returns ``{"destination": ..., "signing_secret": ...}``. The secret is shown once.
-        Optional: max_attempts, timeout_ms, enabled."""
+        Optional: max_attempts, timeout_ms, enabled, event_types (only these are forwarded; empty = all)."""
         return self._c._org("POST", f"/webhooks/{webhook_id}/destinations", {"name": name, "url": url, **fields})
 
     def update(self, id: str, **fields: Any) -> JSON:
@@ -488,3 +489,94 @@ class Syncs(_Resource):
 
     def runs(self, id: str) -> List[JSON]:
         return self._c._org("GET", f"/syncs/{id}/runs")["data"]
+
+
+# ---- outbound webhooks: send events to your own customers ---------------------------
+
+
+def _app(app: str) -> str:
+    return urllib.parse.quote(app, safe="")
+
+
+class OutboundApps(_Resource):
+    """One app per customer; refer to it by your own uid (or its id) everywhere."""
+
+    def list(self) -> List[JSON]:
+        return self._c._org("GET", "/outbound/apps")["data"]
+
+    def get(self, app: str) -> JSON:
+        """``{"app": ..., "endpoints": [...]}``."""
+        return self._c._org("GET", f"/outbound/apps/{_app(app)}")
+
+    def create(self, uid: str, name: Optional[str] = None) -> JSON:
+        body: JSON = {"uid": uid}
+        if name:
+            body["name"] = name
+        return self._c._org("POST", "/outbound/apps", body)
+
+    def delete(self, app: str) -> None:
+        """Also deletes its endpoints and message history."""
+        self._c._org("DELETE", f"/outbound/apps/{_app(app)}")
+
+    def portal_link(self, app: str) -> JSON:
+        """A 24-hour link where the customer manages their endpoints and sees deliveries:
+        ``{"url", "expires_at"}``."""
+        return self._c._org("POST", f"/outbound/apps/{_app(app)}/portal-link")
+
+
+class OutboundEndpoints(_Resource):
+    """Customers manage these themselves in the portal; these let you do it for them."""
+
+    def list(self, app: str) -> List[JSON]:
+        return self._c.outbound.apps.get(app)["endpoints"]
+
+    def create(self, app: str, url: str, **fields: Any) -> JSON:
+        """Returns ``{"endpoint": ..., "signing_secret": "whsec_..."}``.
+        Optional: description, event_types (only these are sent; empty = all)."""
+        return self._c._org("POST", f"/outbound/apps/{_app(app)}/endpoints", {"url": url, **fields})
+
+    def update(self, app: str, id: str, **fields: Any) -> JSON:
+        """Fields: url, description, event_types, enabled."""
+        return self._c._org("PATCH", f"/outbound/apps/{_app(app)}/endpoints/{id}", fields)
+
+    def delete(self, app: str, id: str) -> None:
+        self._c._org("DELETE", f"/outbound/apps/{_app(app)}/endpoints/{id}")
+
+    def secret(self, app: str, id: str) -> str:
+        return self._c._org("GET", f"/outbound/apps/{_app(app)}/endpoints/{id}/secret")["signing_secret"]
+
+    def test(self, app: str, id: str, event_type: Optional[str] = None) -> JSON:
+        """Send a signed test event now; returns ``{ok, status_code, duration_ms, response_body, error}``."""
+        return self._c._org("POST", f"/outbound/apps/{_app(app)}/endpoints/{id}/test", params={"event_type": event_type})
+
+
+class OutboundEventTypes(_Resource):
+    """The catalog customers pick from in the portal. Types you send are added automatically."""
+
+    def list(self) -> List[JSON]:
+        return self._c._org("GET", "/outbound/event-types")["data"]
+
+    def save(self, name: str, description: str = "") -> JSON:
+        """Add it, or update its description."""
+        return self._c._org("POST", "/outbound/event-types", {"name": name, "description": description})
+
+    def delete(self, name: str) -> None:
+        self._c._org("DELETE", f"/outbound/event-types/{_app(name)}")
+
+
+class Outbound(_Resource):
+    def __init__(self, client: Relaya) -> None:
+        super().__init__(client)
+        self.apps = OutboundApps(client)
+        self.endpoints = OutboundEndpoints(client)
+        self.event_types = OutboundEventTypes(client)
+
+    def send(self, app: str, event_type: str, payload: JSON, idempotency_key: Optional[str] = None) -> JSON:
+        """Send an event to every endpoint of that customer that takes its type. Relaya signs it
+        (Standard Webhooks), retries failures and logs every attempt. Returns
+        ``{"id", "app", "event_type", "endpoints", "duplicate"}``; with an idempotency_key, sending
+        the same message again returns the first one (duplicate True) instead of a copy."""
+        body: JSON = {"app": app, "event_type": event_type, "payload": payload}
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._c._org("POST", "/outbound/messages", body)

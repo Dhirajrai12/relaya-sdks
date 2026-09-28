@@ -146,6 +146,8 @@ export interface Destination {
   enabled: boolean
   timeout_ms: number
   max_attempts: number
+  /** Only these event types are forwarded here; empty means all. */
+  event_types: string[]
   created_at: string
   updated_at: string
   stats: {
@@ -484,4 +486,57 @@ export interface AlertLogEntry {
   last_error: string
   created_at: string
   sent_at: string | null
+}
+
+// ---- outbound webhooks ------------------------------------------------------------
+
+/** One of your customers, who receives webhooks from you. */
+export interface OutboundApp {
+  id: string
+  /** Your ID for this customer. */
+  uid: string
+  name: string
+  webhook_id: string
+  endpoints: number
+  messages_24h: number
+  failed_24h: number
+  created_at: string
+}
+
+/** A URL where one of your customers receives their events. */
+export interface OutboundEndpoint {
+  id: string
+  url: string
+  description: string
+  /** Only these event types are sent here; empty means all. */
+  event_types: string[]
+  enabled: boolean
+  created_at: string
+  succeeded_24h: number
+  failed_24h: number
+  retrying: number
+  last_success_at: string | null
+}
+
+export interface OutboundMessage {
+  /** Also the webhook-id header your customer receives, the same on every retry. */
+  id: string
+  app: string
+  event_type: string
+  /** How many endpoints it was queued for. */
+  endpoints: number
+  /** True when the idempotency_key was seen before; nothing new was sent. */
+  duplicate: boolean
+}
+
+export interface OutboundEventType {
+  name: string
+  description: string
+  created_at?: string
+}
+
+export interface PortalLink {
+  /** Open it for your customer; valid for 24 hours. */
+  url: string
+  expires_at: string
 }

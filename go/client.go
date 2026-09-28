@@ -74,6 +74,11 @@ type Client struct {
 	Contracts    *ContractsService
 	Incidents    *IncidentsService
 	Alerts       *AlertsService
+	Outbound     *OutboundService
+	Integrations *IntegrationsService
+	Connections  *ConnectionsService
+	ProxyCalls   *ProxyCallsService
+	Syncs        *SyncsService
 }
 
 // Option configures a Client.
@@ -112,6 +117,11 @@ func New(apiKey string, opts ...Option) *Client {
 	c.Contracts = &ContractsService{c}
 	c.Incidents = &IncidentsService{c}
 	c.Alerts = &AlertsService{c}
+	c.Outbound = newOutbound(c)
+	c.Integrations = &IntegrationsService{c}
+	c.Connections = &ConnectionsService{c}
+	c.ProxyCalls = &ProxyCallsService{c}
+	c.Syncs = &SyncsService{c}
 	return c
 }
 
@@ -387,6 +397,8 @@ type DestinationInput struct {
 	Enabled     *bool  `json:"enabled,omitempty"`
 	MaxAttempts int    `json:"max_attempts,omitempty"`
 	TimeoutMS   int    `json:"timeout_ms,omitempty"`
+	// EventTypes forwards only these types. nil leaves it unchanged; an empty (non-nil) slice means all.
+	EventTypes []string `json:"event_types"`
 }
 
 func (s *DestinationsService) List(ctx context.Context, webhookID string) ([]Destination, error) {

@@ -79,6 +79,54 @@ Options: `WithBaseURL` (or `RELAYA_BASE_URL`), `WithOrgID` (only with a session 
 
 Errors are `*relaya.Error` with `Status`, `Code` and `RequestID`; `relaya.IsNotFound(err)` checks for 404.
 
+## Your users' accounts: connect, call, sync
+
+Let your users connect their Zoho, HubSpot, Google or Shiprocket accounts; Relaya keeps their tokens fresh, calls the APIs for you and turns changes into events. Add the app once under **Connections** in the dashboard, then:
+
+```go
+// 1. A one-time link for one of your users; open it with connect.js (Relaya.connect(url)) or redirect them
+link, err := c.Connections.CreateLink(ctx, "zoho", user.ID, "")
+
+// 2. Call Zoho as that user: Relaya adds and renews the token, and retries what is safe to retry
+conn, err := c.Connections.Find(ctx, "zoho", user.ID) // nil until they have connected
+res, err := c.Proxy(conn.ID).Get(ctx, "/crm/v2/Leads", &relaya.ProxyOptions{Query: url.Values{"per_page": {"10"}}})
+if err == nil && res.OK {
+	var leads struct{ Data []map[string]any }
+	res.JSON(&leads)
+}
+// Zoho's own errors come back in res (res.OK / res.Status); a *relaya.Error means Relaya couldn't make the
+// call, e.g. Code "connection_broken": send the user a new link.
+
+// 3. New and changed records as events (zoho.lead.created / .updated), delivered like any other event
+c.Syncs.Create(ctx, relaya.SyncInput{ConnectionID: conn.ID, Model: "zoho.crm_records", Config: map[string]string{"module": "Leads"}, IntervalMinutes: 15})
+```
+
+Also: `c.Integrations`, `c.Connections.Token(ctx, id)` (a fresh token and `APIBase` to call the provider yourself), `c.ProxyCalls.List`, `c.Syncs.Models` / `Runs` / `Run`. `ProxyOptions.BaseURL` reaches another API host of the same provider (e.g. `https://sheets.googleapis.com`).
+
+## Send webhooks to your customers
+
+If your product sends webhooks to its own customers, Relaya can do the sending: it signs each message with [Standard Webhooks](https://www.standardwebhooks.com), retries failures for up to a day and logs every attempt. Each customer manages their own endpoints in a hosted portal.
+
+```go
+// When a customer signs up: one app per customer, keyed by your own ID for them
+c.Outbound.Apps.Create(ctx, customer.ID, customer.Name)
+
+// Whenever something happens. With an IdempotencyKey, sending the same message twice sends it once.
+msg, err := c.Outbound.Send(ctx, relaya.Message{
+	App:            customer.ID,
+	EventType:      "invoice.paid",
+	Payload:        map[string]any{"invoice_id": inv.ID, "amount": inv.Amount},
+	IdempotencyKey: inv.ID + "-paid",
+})
+// msg.Endpoints: how many endpoints it went to; msg.ID is the webhook-id header they receive
+
+// A "Webhooks" button in your product: a 24-hour portal link where the customer adds endpoints,
+// picks event types, sees deliveries and re-sends failures
+link, err := c.Outbound.Apps.PortalLink(ctx, customer.ID)
+```
+
+Or manage endpoints for them: `c.Outbound.Endpoints.Create(ctx, app, relaya.EndpointInput{URL: ..., EventTypes: ...})` (returns the `whsec_…` signing secret), `List`, `Update`, `Delete`, `Secret`, `Test`; event types in `c.Outbound.EventTypes`. Your customers verify requests with any Standard Webhooks library (`github.com/standard-webhooks/standard-webhooks/libraries/go`).
+
 ## Development
 
 ```sh

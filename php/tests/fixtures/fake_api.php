@@ -63,6 +63,18 @@ switch ("$method $path") {
         return $json(201, ['id' => 'sy1'] + json_decode($body, true));
     case 'POST /v1/orgs/o/syncs/sy1/run':
         return $json(202, ['id' => 'sy1', 'running' => true]);
+    case 'POST /v1/orgs/o/outbound/apps':
+        return $json(201, ['id' => 'a1'] + json_decode($body, true));
+    case 'GET /v1/orgs/o/outbound/apps/cust%3A42':
+        return $json(200, ['app' => ['uid' => 'cust:42'], 'endpoints' => [['id' => 'ep1']]]);
+    case 'POST /v1/orgs/o/outbound/apps/cust%3A42/endpoints':
+        return $json(201, ['endpoint' => ['id' => 'ep1'], 'signing_secret' => 'whsec_x']);
+    case 'POST /v1/orgs/o/outbound/apps/cust%3A42/endpoints/ep1/test':
+        return $json(200, ['ok' => true]);
+    case 'POST /v1/orgs/o/outbound/messages':
+        return $json(202, ['id' => 'm1', 'endpoints' => 1, 'duplicate' => false]);
+    case 'POST /v1/orgs/o/outbound/apps/cust%3A42/portal-link':
+        return $json(201, ['url' => 'https://relaya.test/portal#ps_1']);
     default:
         return $json(404, ['error' => ['code' => 'not_found', 'message' => 'no route']]);
 }

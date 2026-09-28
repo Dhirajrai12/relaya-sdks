@@ -14,7 +14,7 @@ final class Destinations extends Resource
     /**
      * Returns ['destination' => [...], 'signing_secret' => '...']. The secret is shown once.
      *
-     * @param array{name: string, url: string, max_attempts?: int, timeout_ms?: int, enabled?: bool} $input
+     * @param array{name: string, url: string, max_attempts?: int, timeout_ms?: int, enabled?: bool, event_types?: list<string>} $input
      */
     public function create(string $webhookId, array $input): array
     {

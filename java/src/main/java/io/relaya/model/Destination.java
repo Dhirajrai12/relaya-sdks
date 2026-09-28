@@ -1,6 +1,7 @@
 package io.relaya.model;
 
 import java.time.Instant;
+import java.util.List;
 
 /** API model; field names match the API in snake_case. */
 public record Destination(
@@ -13,5 +14,6 @@ public record Destination(
         int maxAttempts,
         Instant createdAt,
         Instant updatedAt,
-        DestinationStats stats) {
+        DestinationStats stats,
+        /** only these event types are forwarded; empty means all */ List<String> eventTypes) {
 }

@@ -184,6 +184,37 @@ Prefer to call the provider yourself? `await relaya.connections.token(id)` gives
 
 **Errors:** failed calls throw `RelayaError` with `status`, `code` (e.g. `not_found`, `bad_request`, `network_error`, `timeout`) and `requestId`. GET requests are retried on network errors, `429` and `5xx` (honouring `Retry-After`); other methods are never retried automatically.
 
+## Send webhooks to your customers
+
+If your product sends webhooks to its own customers, Relaya can do the sending: it signs each message with [Standard Webhooks](https://www.standardwebhooks.com) (so your customers verify it with any library), retries failures for up to a day and logs every attempt. Each customer manages their own endpoints in a hosted portal.
+
+```ts
+// When a customer signs up: one app per customer, keyed by your own ID for them
+await relaya.outbound.apps.create({ uid: customer.id, name: customer.name })
+
+// Whenever something happens. With an idempotency_key, sending the same message twice sends it once.
+const msg = await relaya.outbound.send({
+  app: customer.id,
+  event_type: 'invoice.paid',
+  payload: { invoice_id: invoice.id, amount: invoice.amount },
+  idempotency_key: `${invoice.id}-paid`,
+})
+// msg.endpoints: how many endpoints it went to; msg.id is the webhook-id header they receive
+
+// A "Webhooks" button in your product: a 24-hour portal link where the customer adds endpoints,
+// picks event types, sees deliveries and re-sends failures
+const { url } = await relaya.outbound.apps.portalLink(customer.id)
+```
+
+Or manage endpoints for them: `relaya.outbound.endpoints.create(app, { url, event_types })` (returns the `whsec_…` signing secret), `.list`, `.update`, `.delete`, `.secret`, `.test`. The event types customers pick from are in `relaya.outbound.eventTypes` (types you send are added automatically).
+
+Your customers verify requests like this (`npm install standardwebhooks`):
+
+```ts
+import { Webhook } from 'standardwebhooks'
+const event = new Webhook(process.env.WEBHOOK_SECRET!).verify(rawBody, headers) // throws if the signature is wrong
+```
+
 ## Development
 
 ```sh

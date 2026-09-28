@@ -1,4 +1,4 @@
 package relaya
 
 // Version of this SDK, sent in the User-Agent header.
-const Version = "0.2.1"
+const Version = "0.3.0"
