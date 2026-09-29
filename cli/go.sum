@@ -1,7 +1,7 @@
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/relayaa/relaya-sdks/go v0.4.1-0.20260929131218-4b0fe552e383 h1:U2a6mUmD/JydIA1iCdWnKLRib0ceGZV7xpXNzPx5S3s=
-github.com/relayaa/relaya-sdks/go v0.4.1-0.20260929131218-4b0fe552e383/go.mod h1:c8BQ47BeTt+MAsBztua91klRT/PeMpL5RFwp7SWdwA0=
+github.com/relayaa/relaya-sdks/go v0.4.1-0.20260929143215-a0df64f8479e h1:urs7LYV41wE64lOMdRWW9G2AkeGLnF/ST+LkpvR9I/w=
+github.com/relayaa/relaya-sdks/go v0.4.1-0.20260929143215-a0df64f8479e/go.mod h1:c8BQ47BeTt+MAsBztua91klRT/PeMpL5RFwp7SWdwA0=
 golang.org/x/sys v0.44.0 h1:ildZl3J4uzeKP07r2F++Op7E9B29JRUy+a27EibtBTQ=
 golang.org/x/sys v0.44.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
 golang.org/x/term v0.27.0 h1:WP60Sv1nlK1T6SupCHbXzSaN0b9wUmsPoRS9b61A23Q=

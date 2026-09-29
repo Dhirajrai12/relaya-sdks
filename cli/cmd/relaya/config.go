@@ -52,11 +52,14 @@ func loadConfig() (config, error) {
 	if u := os.Getenv("RELAYA_BASE_URL"); u != "" {
 		c.BaseURL = u
 	}
-	if c.BaseURL == "" {
+	if c.BaseURL == "" || c.BaseURL == legacyBaseURL {
 		c.BaseURL = relaya.DefaultBaseURL
 	}
 	return c, nil
 }
+
+// legacyBaseURL is the hosted API's old address, which earlier logins saved.
+const legacyBaseURL = "https://server.aegonassett.com/api"
 
 func saveConfig(c config) error {
 	p, err := configPath()

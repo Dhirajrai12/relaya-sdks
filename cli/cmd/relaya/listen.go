@@ -80,7 +80,7 @@ func normalizeTarget(s string) (string, error) {
 	return u.String(), nil
 }
 
-// streamURL is the WebSocket for an org: https://host/api → wss://host/api/v1/orgs/{org}/stream.
+// streamURL is the WebSocket for an org: https://api.relaya.sbs → wss://api.relaya.sbs/v1/orgs/{org}/stream.
 func streamURL(base, org string) string {
 	u := strings.TrimRight(base, "/")
 	switch {
