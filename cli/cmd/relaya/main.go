@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-const version = "0.3.0"
+const version = "0.4.0"
 
 const usage = `Relaya CLI %s: forward webhook events to your local server, and send test events.
 

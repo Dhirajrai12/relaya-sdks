@@ -27,7 +27,7 @@ use Relaya\Resources\Webhooks;
  */
 final class Client
 {
-    public const VERSION = '0.3.0';
+    public const VERSION = '0.4.0';
 
     /** Where the API lives until the product has its own domain. */
     public const DEFAULT_BASE_URL = 'https://server.aegonassett.com/api';
