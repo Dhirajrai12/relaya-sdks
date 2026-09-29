@@ -24,7 +24,7 @@ Press Ctrl+C to stop.
 
 Download the file for your computer from the [latest release](https://github.com/Dhirajrai12/relaya-sdks/releases/latest) (`relaya_…_windows_amd64.zip`, `…_darwin_arm64.tar.gz` for Apple silicon Macs, `…_linux_amd64.tar.gz`…), unpack it and put `relaya` (or `relaya.exe`) somewhere on your PATH.
 
-With Go 1.23 or newer:
+With Go 1.25 or newer:
 
 ```sh
 go install github.com/Dhirajrai12/relaya-sdks/cli/cmd/relaya@latest
