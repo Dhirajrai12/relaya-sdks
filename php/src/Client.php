@@ -30,7 +30,7 @@ final class Client
     public const VERSION = '0.4.0';
 
     /** Where the API lives until the product has its own domain. */
-    public const DEFAULT_BASE_URL = 'https://server.aegonassett.com/api';
+    public const DEFAULT_BASE_URL = 'https://api.relaya.sbs';
 
     public readonly string $baseUrl;
     public readonly Projects $projects;

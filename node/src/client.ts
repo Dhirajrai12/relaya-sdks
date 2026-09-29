@@ -38,7 +38,7 @@ import type {
 } from './types.ts'
 
 /** Where the API lives until the product has its own domain. Override with `baseUrl` or RELAYA_BASE_URL. */
-export const DEFAULT_BASE_URL = 'https://server.aegonassett.com/api'
+export const DEFAULT_BASE_URL = 'https://api.relaya.sbs'
 
 export interface RelayaOptions {
   /** An API key (`rk_…`) from Settings → API keys. Defaults to the RELAYA_API_KEY environment variable. */

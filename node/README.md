@@ -153,7 +153,7 @@ app.post('/integrations/zoho/link', async (req, res) => {
 
 ```html
 <!-- 2. Frontend: a popup, resolved once they've connected -->
-<script src="https://server.aegonassett.com/connect.js"></script>
+<script src="https://relaya.sbs/connect.js"></script>
 <script>
   connectButton.onclick = async () => {
     const { url } = await fetch('/integrations/zoho/link', { method: 'POST' }).then((r) => r.json())

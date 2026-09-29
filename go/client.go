@@ -32,8 +32,8 @@ import (
 	"time"
 )
 
-// DefaultBaseURL is where the API lives until the product has its own domain.
-const DefaultBaseURL = "https://server.aegonassett.com/api"
+// DefaultBaseURL is the hosted API.
+const DefaultBaseURL = "https://api.relaya.sbs"
 
 // Error is an error response from the API.
 type Error struct {

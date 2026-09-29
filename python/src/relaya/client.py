@@ -18,7 +18,7 @@ from . import __version__
 from .errors import RelayaError
 
 #: Where the API lives until the product has its own domain.
-DEFAULT_BASE_URL = "https://server.aegonassett.com/api"
+DEFAULT_BASE_URL = "https://api.relaya.sbs"
 
 JSON = Dict[str, Any]
 

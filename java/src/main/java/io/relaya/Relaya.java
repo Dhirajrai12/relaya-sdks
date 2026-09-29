@@ -69,7 +69,7 @@ public final class Relaya {
     public static final String VERSION = "0.4.0";
 
     /** Where the API lives until the product has its own domain. */
-    public static final String DEFAULT_BASE_URL = "https://server.aegonassett.com/api";
+    public static final String DEFAULT_BASE_URL = "https://api.relaya.sbs";
 
     private final String apiKey;
     private final String baseUrl;
