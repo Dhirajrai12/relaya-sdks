@@ -14,6 +14,7 @@ const edits = [
   ['python/src/relaya/__init__.py', /(__version__ = ")[^"]+(")/],
   ['php/src/Client.php', /(public const VERSION = ')[^']+(')/],
   ['go/version.go', /(const Version = ")[^"]+(")/],
+  ['cli/cmd/relaya/main.go', /(const version = ")[^"]+(")/],
   ['java/pom.xml', /(<artifactId>relaya-java<\/artifactId>\s*<version>)[^<]+(<\/version>)/],
   ['java/src/main/java/io/relaya/Relaya.java', /(public static final String VERSION = ")[^"]+(")/],
 ]

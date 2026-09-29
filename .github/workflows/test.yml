@@ -76,6 +76,19 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  cli:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test -race ./...
+
   java:
     runs-on: ubuntu-latest
     strategy:

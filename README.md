@@ -5,7 +5,9 @@ Official SDKs for Relaya. Each one does the same jobs, with the same names where
 1. **Receive:** verify the `Relaya-Signature` on requests Relaya forwards to your endpoint, and read the delivery's details (idempotency key, event ID, attempt, replay ID, original body).
 2. **Call the API:** events (with paging), deliveries and retry, incidents and replay, contracts, destinations, webhooks, projects, alerts.
 3. **Send webhooks to your customers** (all five): `outbound.send(...)` for every event, one app per customer, their endpoints, and a hosted portal link. Relaya signs with Standard Webhooks, retries and logs.
-4. **Your users' accounts** (all five): connect Zoho, HubSpot, Google or Shiprocket, call their APIs through the proxy, and sync changes into events.
+4. **Your users' accounts** (all five): connect Zoho, HubSpot, Google, Jira or Shiprocket, call their APIs through the proxy, and sync changes into events.
+
+**The CLI** ([cli](cli)) forwards the events Relaya receives to your own computer while you build, and sends signed test events: `relaya listen --forward-to http://localhost:3000/webhooks`, `relaya trigger payment.captured`. Download it from the [latest release](https://github.com/Dhirajrai12/relaya-sdks/releases/latest), or `go install github.com/Dhirajrai12/relaya-sdks/cli/cmd/relaya@latest`.
 
 | Language | Folder | Install | Receive helpers |
 |---|---|---|---|
