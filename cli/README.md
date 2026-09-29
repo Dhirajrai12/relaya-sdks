@@ -22,12 +22,12 @@ Press Ctrl+C to stop.
 
 ## Install
 
-Download the file for your computer from the [latest release](https://github.com/Dhirajrai12/relaya-sdks/releases/latest) (`relaya_…_windows_amd64.zip`, `…_darwin_arm64.tar.gz` for Apple silicon Macs, `…_linux_amd64.tar.gz`…), unpack it and put `relaya` (or `relaya.exe`) somewhere on your PATH.
+Download the file for your computer from the [latest release](https://github.com/relayaa/relaya-sdks/releases/latest) (`relaya_…_windows_amd64.zip`, `…_darwin_arm64.tar.gz` for Apple silicon Macs, `…_linux_amd64.tar.gz`…), unpack it and put `relaya` (or `relaya.exe`) somewhere on your PATH.
 
 With Go 1.25 or newer:
 
 ```sh
-go install github.com/Dhirajrai12/relaya-sdks/cli/cmd/relaya@latest
+go install github.com/relayaa/relaya-sdks/cli/cmd/relaya@latest
 ```
 
 ## Commands
@@ -37,7 +37,7 @@ go install github.com/Dhirajrai12/relaya-sdks/cli/cmd/relaya@latest
 | `relaya login [--api-key rk_…] [--base-url URL]` | Saves an API key (Relaya → Settings → API keys, **admin** role) in your user config folder, readable only by you. Asks for it when `--api-key` is left out. |
 | `relaya webhooks` | Lists your webhooks. |
 | `relaya listen --forward-to URL` | Forwards each new event to URL until Ctrl+C. `3000` and `3000/webhooks` mean `http://localhost:3000…`. |
-| `relaya trigger EVENT_TYPE [--webhook ID\|name] [--payload file.json]` | Sends a sample event with the [event simulator](https://github.com/Dhirajrai12/relaya-sdks#readme): signed with the webhook's own secret, the way the provider signs it. |
+| `relaya trigger EVENT_TYPE [--webhook ID\|name] [--payload file.json]` | Sends a sample event with the [event simulator](https://github.com/relayaa/relaya-sdks#readme): signed with the webhook's own secret, the way the provider signs it. |
 | `relaya logout`, `relaya version` | |
 
 `listen` options: `--webhook` (ID or name; repeat or comma-separate; default all), `--events a,b` (only these types), `-H "Name: value"` (extra header, repeatable), `--print-body`, `--timeout 30s`.

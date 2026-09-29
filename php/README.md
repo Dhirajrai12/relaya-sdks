@@ -3,7 +3,7 @@
 Verify requests that Relaya forwards to your endpoints, and call the Relaya API. Includes Laravel middleware. PHP 8.1+ with `ext-curl`.
 
 ```sh
-composer require dhirajrai12/relaya-php
+composer require relayaa/relaya-php
 ```
 
 ## Receive events

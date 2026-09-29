@@ -19,7 +19,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	relaya "github.com/Dhirajrai12/relaya-sdks/go"
+	relaya "github.com/relayaa/relaya-sdks/go"
 	"golang.org/x/term"
 )
 

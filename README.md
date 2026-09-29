@@ -7,15 +7,15 @@ Official SDKs for Relaya. Each one does the same jobs, with the same names where
 3. **Send webhooks to your customers** (all five): `outbound.send(...)` for every event, one app per customer, their endpoints, and a hosted portal link. Relaya signs with Standard Webhooks, retries and logs.
 4. **Your users' accounts** (all five): connect Zoho, HubSpot, Google, Jira or Shiprocket, call their APIs through the proxy, and sync changes into events.
 
-**The CLI** ([cli](cli)) forwards the events Relaya receives to your own computer while you build, and sends signed test events: `relaya listen --forward-to http://localhost:3000/webhooks`, `relaya trigger payment.captured`. Download it from the [latest release](https://github.com/Dhirajrai12/relaya-sdks/releases/latest), or `go install github.com/Dhirajrai12/relaya-sdks/cli/cmd/relaya@latest`.
+**The CLI** ([cli](cli)) forwards the events Relaya receives to your own computer while you build, and sends signed test events: `relaya listen --forward-to http://localhost:3000/webhooks`, `relaya trigger payment.captured`. Download it from the [latest release](https://github.com/relayaa/relaya-sdks/releases/latest), or `go install github.com/relayaa/relaya-sdks/cli/cmd/relaya@latest`.
 
 | Language | Folder | Install | Receive helpers |
 |---|---|---|---|
 | Node.js / TypeScript | [node](node) | `npm install relaya-node` | Express middleware, Fetch handler (Next.js, Hono, Bun, Deno, Workers) |
 | Python | [python](python) | `pip install relaya` | Django, Flask, FastAPI |
-| PHP | [php](php) | `composer require dhirajrai12/relaya-php` | Laravel middleware, plain PHP |
-| Go | [go](go) | `go get github.com/Dhirajrai12/relaya-sdks/go` | `net/http` middleware |
-| Java / Kotlin | [java](java) | Maven `io.github.dhirajrai12:relaya-java` | Spring Boot, Servlet |
+| PHP | [php](php) | `composer require relayaa/relaya-php` | Laravel middleware, plain PHP |
+| Go | [go](go) | `go get github.com/relayaa/relaya-sdks/go` | `net/http` middleware |
+| Java / Kotlin | [java](java) | Maven `io.github.relayaa:relaya-java` | Spring Boot, Servlet |
 
 ## The signature, for any other language
 
@@ -49,11 +49,11 @@ Publish a GitHub release with a tag like `v0.2.0`. [Release](.github/workflows/r
 | PyPI | Create a PyPI account. Under **Publishing**, add a pending trusted publisher: this repo, workflow `release.yml`, environment `pypi`. Set the repo variable `PUBLISH_PYPI` to `true`. | Automatic, no token stored |
 | Packagist | Create a Packagist account, **Submit** this repo's URL, and connect GitHub so it updates on each tag. | Automatic |
 | Go | Nothing. The workflow pushes the `go/vX.Y.Z` tag Go needs. | Automatic |
-| Maven Central | Verify the `io.github.dhirajrai12` namespace at central.sonatype.com (sign in with GitHub). Add `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` (a user token) and `MAVEN_GPG_PRIVATE_KEY` / `MAVEN_GPG_PASSPHRASE` (a GPG key published to keyserver.ubuntu.com). | Automatic |
+| Maven Central | Verify the `io.github.relayaa` namespace at central.sonatype.com (sign in with GitHub). Add `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` (a user token) and `MAVEN_GPG_PRIVATE_KEY` / `MAVEN_GPG_PASSPHRASE` (a GPG key published to keyserver.ubuntu.com). | Automatic |
 
 A registry that isn't set up yet is skipped with a note in the run, so they can be switched on one at a time. Secrets go in GitHub → Settings → Secrets and variables → Actions; never in code or chat.
 
-Published names: `relaya-node` (npm), `dhirajrai12/relaya-php` (Packagist), `relaya` (PyPI), `github.com/Dhirajrai12/relaya-sdks/go` (Go) and `io.github.dhirajrai12:relaya-java` (Maven Central). A published name can't be taken back.
+Published names: `relaya-node` (npm), `relayaa/relaya-php` (Packagist), `relaya` (PyPI), `github.com/relayaa/relaya-sdks/go` (Go) and `io.github.relayaa:relaya-java` (Maven Central). A published name can't be taken back.
 
 ## License
 

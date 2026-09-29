@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.dhirajrai12</groupId>
+  <groupId>io.github.relayaa</groupId>
   <artifactId>relaya-java</artifactId>
   <version>0.4.0</version>
   <packaging>jar</packaging>
 
   <name>Relaya Java SDK</name>
   <description>Verify webhooks forwarded by Relaya and call the Relaya API.</description>
-  <url>https://github.com/Dhirajrai12/relaya-sdks</url>
+  <url>https://github.com/relayaa/relaya-sdks</url>
 
   <licenses>
     <license>
@@ -23,13 +23,13 @@
   <developers>
     <developer>
       <name>Dhiraj Kumar</name>
-      <url>https://github.com/Dhirajrai12</url>
+      <url>https://github.com/relayaa</url>
     </developer>
   </developers>
 
   <scm>
-    <url>https://github.com/Dhirajrai12/relaya-sdks</url>
-    <connection>scm:git:https://github.com/Dhirajrai12/relaya-sdks.git</connection>
+    <url>https://github.com/relayaa/relaya-sdks</url>
+    <connection>scm:git:https://github.com/relayaa/relaya-sdks.git</connection>
   </scm>
 
   <properties>

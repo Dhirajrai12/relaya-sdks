@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	relaya "github.com/Dhirajrai12/relaya-sdks/go"
+	relaya "github.com/relayaa/relaya-sdks/go"
 )
 
 func TestBuildForward(t *testing.T) {

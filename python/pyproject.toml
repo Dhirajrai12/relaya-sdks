@@ -19,8 +19,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Dhirajrai12/relaya-sdks/tree/main/python"
-Source = "https://github.com/Dhirajrai12/relaya-sdks"
+Homepage = "https://github.com/relayaa/relaya-sdks/tree/main/python"
+Source = "https://github.com/relayaa/relaya-sdks"
 
 [tool.setuptools.packages.find]
 where = ["src"]

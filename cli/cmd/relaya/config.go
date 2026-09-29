@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	relaya "github.com/Dhirajrai12/relaya-sdks/go"
+	relaya "github.com/relayaa/relaya-sdks/go"
 )
 
 // config is what `relaya login` saves, in the user's config folder, readable only by them.

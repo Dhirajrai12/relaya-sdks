@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	relaya "github.com/Dhirajrai12/relaya-sdks/go"
+	relaya "github.com/relayaa/relaya-sdks/go"
 )
 
 // syncBuffer is an io.Writer safe to read while listen writes to it.

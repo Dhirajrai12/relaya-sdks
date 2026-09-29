@@ -16,7 +16,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	relaya "github.com/Dhirajrai12/relaya-sdks/go"
+	relaya "github.com/relayaa/relaya-sdks/go"
 )
 
 type listenOpts struct {

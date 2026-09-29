@@ -3,11 +3,11 @@
 Verify requests that Relaya forwards to your endpoints, and call the Relaya API. Standard library only; Go 1.23+.
 
 ```sh
-go get github.com/Dhirajrai12/relaya-sdks/go
+go get github.com/relayaa/relaya-sdks/go
 ```
 
 ```go
-import relaya "github.com/Dhirajrai12/relaya-sdks/go"
+import relaya "github.com/relayaa/relaya-sdks/go"
 ```
 
 ## Receive events
